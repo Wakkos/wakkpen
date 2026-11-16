@@ -10,6 +10,7 @@ import { Preview } from '../components/Preview'
 import { Workspace } from '../components/Workspace'
 import { LiveDot } from '../components/StatusDot'
 import { FilesPanel } from '../components/FilesPanel'
+import { GitHubMark } from '../components/GitHubPanel'
 import { TopBar } from '../components/Layout'
 
 export function TeacherPen() {
@@ -87,6 +88,23 @@ export function TeacherPen() {
           <span className="viewer-title">{pen.title}</span>
           <span className="viewer-time">{timeAgo(pen.updated_at, now)}</span>
           <div className="editor-actions">
+            {pen.gh_repo && (
+              <a
+                className="btn btn-ghost btn-sm"
+                href={pen.gh_commit_sha ? `https://github.com/${pen.gh_repo}/commit/${pen.gh_commit_sha}` : `https://github.com/${pen.gh_repo}`}
+                target="_blank"
+                rel="noreferrer"
+                title={pen.gh_repo}
+              >
+                <GitHubMark />
+                {pen.gh_commit_at ? timeAgo(pen.gh_commit_at, now) : 'GitHub'}
+              </a>
+            )}
+            {pen.gh_pages_url && (
+              <a className="btn btn-ghost btn-sm" href={pen.gh_pages_url} target="_blank" rel="noreferrer">
+                Pages
+              </a>
+            )}
             <button className="btn btn-ghost btn-sm" onClick={() => setFilesOpen((o) => !o)}>
               Archivos
             </button>

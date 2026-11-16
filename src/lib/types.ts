@@ -19,6 +19,12 @@ export interface Pen {
   js: string
   created_at: string
   updated_at: string
+  gh_repo: string | null
+  gh_branch: string | null
+  gh_path: string
+  gh_commit_sha: string | null
+  gh_commit_at: string | null
+  gh_pages_url: string | null
 }
 
 export interface PenWithOwner extends Pen {

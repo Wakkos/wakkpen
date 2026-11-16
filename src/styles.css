@@ -114,12 +114,13 @@ body.is-dragging iframe { pointer-events: none; }
 /* ---------- En vivo ---------- */
 .live-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
 .live-list li + li { border-top: 1px solid var(--line); }
-.live-row { width: 100%; display: grid; grid-template-columns: 12px minmax(120px, 200px) 1fr 48px 80px; align-items: center; gap: 14px; padding: 12px 16px; border: 0; background: var(--bg-elev); text-align: left; transition: background .15s; }
+.live-row { width: 100%; display: grid; grid-template-columns: 12px minmax(120px, 200px) 1fr 72px 80px; align-items: center; gap: 14px; padding: 12px 16px; border: 0; background: var(--bg-elev); text-align: left; transition: background .15s; }
 .live-row:hover { background: var(--bg-hover); }
 .live-row.is-flash { animation: flash 1s ease-out; }
 .live-owner { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .live-title { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.live-tag { display: flex; justify-content: flex-end; }
+.live-tag { display: flex; justify-content: flex-end; align-items: center; gap: 8px; }
+.gh-flag { color: var(--muted); display: inline-flex; }
 .live-time { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; text-align: right; }
 
 /* ---------- Alumnos ---------- */
@@ -189,6 +190,40 @@ body.is-dragging iframe { pointer-events: none; }
 .file-name { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
 .file-name small { color: var(--muted); font-size: 11px; }
 .drawer .btn-primary { width: 100%; }
+
+/* ---------- GitHub ---------- */
+.btn.has-dot::after { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--ok); }
+.btn.is-success { background: var(--ok); border-color: var(--ok); color: #04150a; }
+.btn.is-success::before { content: '✓'; animation: pop .3s ease-out; }
+.gh-title { display: flex; align-items: center; gap: 8px; }
+.drawer-loading { height: 80px; border-radius: 8px; background: linear-gradient(90deg, var(--bg-editor), var(--bg-hover), var(--bg-editor)); background-size: 200% 100%; animation: shimmer 1.2s linear infinite; }
+.gh-connect { display: flex; flex-direction: column; }
+.gh-body { display: flex; flex-direction: column; gap: 12px; animation: rise .2s ease-out; }
+.gh-account { display: flex; align-items: center; justify-content: space-between; color: var(--muted); font-size: 13px; }
+.gh-account span { color: var(--text); font-weight: 600; }
+.link-btn { border: 0; background: none; padding: 0; color: var(--muted); font-size: 12px; text-decoration: underline; text-underline-offset: 2px; }
+.link-btn:hover { color: var(--text); }
+.seg-block { display: flex; }
+.seg-block button { flex: 1; height: 28px; font-size: 12px; letter-spacing: 0; text-transform: none; }
+.field { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--muted); }
+.field .select, .input { width: 100%; height: 34px; padding: 0 10px; border-radius: var(--radius); border: 1px solid var(--line); background: var(--bg-editor); color: var(--text); outline: none; font-size: 13px; transition: border-color .15s, box-shadow .15s; }
+.input:focus, .field .select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.input-prefix { display: flex; align-items: center; height: 34px; border-radius: var(--radius); border: 1px solid var(--line); background: var(--bg-editor); overflow: hidden; transition: border-color .15s, box-shadow .15s; }
+.input-prefix:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.input-prefix em { font-style: normal; color: var(--muted); padding-left: 10px; font-size: 13px; white-space: nowrap; }
+.input-prefix input { flex: 1; min-width: 0; height: 100%; border: 0; background: none; color: var(--text); outline: none; font-size: 13px; padding: 0 10px 0 2px; }
+.check { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+.check input { accent-color: var(--accent); width: 15px; height: 15px; }
+.gh-target { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; padding: 10px 12px; border-radius: 8px; background: var(--bg-editor); }
+.gh-target a { color: var(--text); font-weight: 600; text-decoration: none; }
+.gh-target a:hover { color: var(--accent); }
+.gh-branch { color: var(--muted); font: 12px var(--font-mono); }
+.gh-target .link-btn { margin-left: auto; }
+.gh-links { display: flex; flex-direction: column; gap: 6px; padding-top: 4px; border-top: 1px solid var(--line); font-size: 12px; }
+.gh-links a { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); text-decoration: none; padding-top: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gh-links a:hover { color: var(--accent); }
+.gh-links code { font-family: var(--font-mono); color: var(--text); }
+a.btn { text-decoration: none; }
 
 /* ---------- Animaciones ---------- */
 @keyframes spin { to { transform: rotate(360deg); } }

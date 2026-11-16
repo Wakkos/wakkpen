@@ -69,6 +69,15 @@ code   CNAME   cname.vercel-dns.com
 ```
 Después actualiza Site URL y Redirect URLs en Supabase con ese dominio.
 
+### 7. GitHub (commit y Pages desde el editor)
+1. En GitHub: *Settings → Developer settings → OAuth Apps → New OAuth App*.
+   - Homepage URL: la de producción.
+   - Callback URL: `https://<ref>.supabase.co/auth/v1/callback`.
+   - Sin "Expire user access tokens".
+2. En Supabase: *Authentication → Sign In / Providers*: activa **GitHub** con el Client ID y el secret, y activa **Allow manual linking**.
+
+Cada alumno conecta su GitHub desde el editor (scope `public_repo`: solo repos públicos). El token se guarda en `github_tokens`, que solo puede leer su dueño. El commit sube `index.html`, `style.css` (y `style.scss`), `script.js` y `assets/`, con las URLs de los archivos convertidas en rutas relativas.
+
 ## A tener en cuenta
 - **Pausa por inactividad**: en el plan Free, Supabase pausa el proyecto tras 7 días sin uso. Se reactiva desde el panel.
 - **Archivos**: 2 MB por archivo y 10 archivos por usuario. Tipos: png, jpg, webp, gif, svg, woff, woff2, json.

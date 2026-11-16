@@ -10,6 +10,7 @@ import { Preview } from '../components/Preview'
 import { Workspace } from '../components/Workspace'
 import { StatusDot } from '../components/StatusDot'
 import { FilesPanel } from '../components/FilesPanel'
+import { GitHubPanel, GitHubMark } from '../components/GitHubPanel'
 import { TopBar } from '../components/Layout'
 
 type Fields = Pick<Pen, 'title' | 'html' | 'css' | 'css_lang' | 'js'>
@@ -22,7 +23,7 @@ export function Editor() {
   const [notFound, setNotFound] = useState(false)
   const [fields, setFields] = useState<Fields | null>(null)
   const [save, setSave] = useState<SaveState>('idle')
-  const [filesOpen, setFilesOpen] = useState(false)
+  const [panel, setPanel] = useState<'files' | 'github' | null>(null)
   const [exporting, setExporting] = useState(false)
 
   const latest = useRef<Fields | null>(null)
@@ -160,9 +161,18 @@ export function Editor() {
           />
           {!readOnly && <StatusDot state={save} />}
           <div className="editor-actions">
-            <button className="btn btn-ghost btn-sm" onClick={() => setFilesOpen((o) => !o)}>
+            <button className="btn btn-ghost btn-sm" onClick={() => setPanel((p) => (p === 'files' ? null : 'files'))}>
               Archivos
             </button>
+            {!readOnly && (
+              <button
+                className={`btn btn-ghost btn-sm${pen.gh_repo ? ' has-dot' : ''}`}
+                onClick={() => setPanel((p) => (p === 'github' ? null : 'github'))}
+              >
+                <GitHubMark />
+                GitHub
+              </button>
+            )}
             <button className={`btn btn-ghost btn-sm${exporting ? ' is-busy' : ''}`} onClick={onExport} disabled={exporting}>
               Exportar
             </button>
@@ -211,8 +221,15 @@ export function Editor() {
         ]}
         bottom={<Preview html={fields.html} css={fields.css} cssLang={fields.css_lang} js={fields.js} />}
       />
-      {filesOpen && (
-        <FilesPanel penId={pen.id} userId={session.user.id} readOnly={readOnly} onClose={() => setFilesOpen(false)} />
+      {panel === 'files' && (
+        <FilesPanel penId={pen.id} userId={session.user.id} readOnly={readOnly} onClose={() => setPanel(null)} />
+      )}
+      {panel === 'github' && !readOnly && (
+        <GitHubPanel
+          pen={{ ...pen, ...fields }}
+          onClose={() => setPanel(null)}
+          onSaved={(patch) => setPen((p) => (p ? { ...p, ...patch } : p))}
+        />
       )}
     </div>
   )

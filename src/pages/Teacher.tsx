@@ -5,10 +5,11 @@ import type { Pen, Profile } from '../lib/types'
 import { timeAgo } from '../lib/export'
 import { useEditingPresence, useNow } from '../lib/useLive'
 import { LiveDot } from '../components/StatusDot'
+import { GitHubMark } from '../components/GitHubPanel'
 import { Page } from '../components/Layout'
 
-type PenRow = Pick<Pen, 'id' | 'owner_id' | 'title' | 'css_lang' | 'updated_at'>
-const COLS = 'id, owner_id, title, css_lang, updated_at'
+type PenRow = Pick<Pen, 'id' | 'owner_id' | 'title' | 'css_lang' | 'updated_at' | 'gh_repo'>
+const COLS = 'id, owner_id, title, css_lang, updated_at, gh_repo'
 
 export function Teacher() {
   const navigate = useNavigate()
@@ -39,7 +40,7 @@ export function Teacher() {
           return
         }
         const row = payload.new as Pen
-        const slim: PenRow = { id: row.id, owner_id: row.owner_id, title: row.title, css_lang: row.css_lang, updated_at: row.updated_at }
+        const slim: PenRow = { id: row.id, owner_id: row.owner_id, title: row.title, css_lang: row.css_lang, updated_at: row.updated_at, gh_repo: row.gh_repo }
         setPens((prev) => {
           const rest = (prev ?? []).filter((p) => p.id !== slim.id)
           return [slim, ...rest]
@@ -102,7 +103,14 @@ export function Teacher() {
                   <LiveDot active={!!info} typing={info?.typing} />
                   <span className="live-owner">{owner?.nombre ?? '…'}</span>
                   <span className="live-title">{p.title}</span>
-                  <span className="live-tag">{p.css_lang === 'scss' && <span className="tag">SCSS</span>}</span>
+                  <span className="live-tag">
+                    {p.gh_repo && (
+                      <span className="gh-flag" title={p.gh_repo}>
+                        <GitHubMark size={13} />
+                      </span>
+                    )}
+                    {p.css_lang === 'scss' && <span className="tag">SCSS</span>}
+                  </span>
                   <span className="live-time">{timeAgo(p.updated_at, now)}</span>
                 </button>
               </li>

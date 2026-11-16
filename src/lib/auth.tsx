@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from './supabase'
 import type { Profile } from './types'
+import { storeProviderToken } from './github'
 
 interface AuthState {
   session: Session | null
@@ -34,13 +35,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data }) => {
       setSession(data.session)
+      if (data.session?.provider_token) storeProviderToken(data.session.provider_token).then(() => window.dispatchEvent(new Event('wakkpen:github')))
       await loadProfile(data.session)
       setLoading(false)
     })
     const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
       setSession(s)
       // Fuera del callback para no bloquear el cliente de auth.
-      setTimeout(() => loadProfile(s), 0)
+      setTimeout(() => {
+        loadProfile(s)
+        // Al volver de GitHub, el token del proveedor solo viene en esta sesión: se guarda.
+        if (s?.provider_token) storeProviderToken(s.provider_token).then(() => window.dispatchEvent(new Event('wakkpen:github')))
+      }, 0)
     })
     return () => sub.subscription.unsubscribe()
   }, [])
