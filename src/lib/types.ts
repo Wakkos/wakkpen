@@ -43,9 +43,3 @@ export interface PenFile {
 }
 
 export type SaveState = 'idle' | 'saving' | 'saved' | 'error'
-
-export interface ConsoleEntry {
-  id: number
-  level: 'log' | 'info' | 'warn' | 'error'
-  text: string
-}
