@@ -15,6 +15,7 @@ import { Sheets } from './pages/Sheets'
 import { SheetStudent } from './pages/SheetStudent'
 import { TeacherSheets } from './pages/TeacherSheets'
 import { SheetTeacher } from './pages/SheetTeacher'
+import { ClaudeConnect } from './pages/ClaudeConnect'
 
 function TeacherOnly({ children }: { children: ReactNode }) {
   const { profile } = useAuth()
@@ -36,6 +37,7 @@ function Gate() {
       <Route path="/ejercicios/:id" element={<SheetStudent />} />
       <Route path="/profesor/ejercicios" element={<TeacherOnly><TeacherSheets /></TeacherOnly>} />
       <Route path="/profesor/ejercicios/:id" element={<TeacherOnly><SheetTeacher /></TeacherOnly>} />
+      <Route path="/profesor/claude" element={<TeacherOnly><ClaudeConnect /></TeacherOnly>} />
       <Route path="/profesor" element={<TeacherOnly><Teacher /></TeacherOnly>} />
       <Route path="/profesor/pen/:id" element={<TeacherOnly><TeacherPen /></TeacherOnly>} />
       <Route path="/profesor/alumnos" element={<TeacherOnly><Students /></TeacherOnly>} />

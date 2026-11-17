@@ -397,6 +397,18 @@ a.btn { text-decoration: none; }
 .solution { padding: 10px 12px; border-radius: 8px; background: rgba(63,185,80,.08); border: 1px solid rgba(63,185,80,.25); animation: rise .3s ease-out; }
 .solution-label { display: block; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ok); margin-bottom: 4px; }
 
+/* ---------- Claude ---------- */
+.mcp-fresh { padding: 16px; border-radius: 12px; border: 1px solid var(--accent); background: var(--accent-soft); margin-bottom: 18px; animation: rise .25s ease-out; }
+.mcp-url { display: flex; gap: 8px; align-items: center; }
+.mcp-url code { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 8px 10px; border-radius: 6px; background: var(--bg); font: 12px var(--font-mono); }
+.mcp-steps { margin: 12px 0 6px; padding-left: 18px; color: var(--text); font-size: 13px; line-height: 1.7; }
+.mono { font-family: var(--font-mono); }
+.grade-cell.has-suggestion { box-shadow: 0 0 0 3px var(--bg-elev), 0 0 0 5px rgba(121, 192, 255, .7); }
+.suggestion { padding: 10px 12px; border-radius: 8px; border: 1px dashed rgba(121, 192, 255, .6); background: rgba(121, 192, 255, .08); margin-bottom: 10px; animation: rise .2s ease-out; }
+.suggestion-label { font-size: 12px; font-weight: 700; color: #79c0ff; }
+.suggestion p { margin: 6px 0; font-size: 13px; }
+.suggestion-actions { display: flex; align-items: center; gap: 10px; }
+
 /* ---------- Animaciones ---------- */
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes pop { 0% { transform: scale(.6); } 70% { transform: scale(1.2); } 100% { transform: scale(1); } }

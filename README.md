@@ -85,6 +85,13 @@ update public.settings set value = 'profe1@x.com, profe2@y.com' where key = 'tea
 ```
 Todos los profesores ven todo lo de todos los alumnos.
 
+### 9. Conector de Claude (MCP)
+Función `supabase/functions/mcp` (desplegar con "Verify JWT" desactivado: autentica con su propio token).
+Cada profesor genera su enlace en **Menú de usuario → Conectar con Claude** y lo añade en Claude como conector personalizado.
+Herramientas: listar/ver/crear/editar hojas y ejercicios (siempre en borrador), listar alumnos, leer entregas y `suggest_grade`
+(sugerencia que el profe aplica o descarta). Claude no puede publicar hojas ni soluciones ni corregir.
+Siguiente paso previsto: OAuth por profesor y clases, sustituyendo el token de la URL.
+
 ## Funciones del aula
 - **Muro** (`/profesor/muro`): vista previa en vivo de todos los alumnos; clic para pantalla completa, flechas para pasar, Esc para salir.
 - **Levantar la mano**: botón ✋ del alumno; el profe la ve en "En vivo" y en el muro y la baja con un clic.

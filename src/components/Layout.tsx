@@ -58,6 +58,11 @@ function UserMenu() {
           <Link to="/ejercicios" role="menuitem" onClick={() => setOpen(false)}>
             Ejercicios
           </Link>
+          {teacher && (
+            <Link to="/profesor/claude" role="menuitem" onClick={() => setOpen(false)}>
+              Conectar con Claude
+            </Link>
+          )}
           <button role="menuitem" className={`user-signout${leaving ? ' is-busy' : ''}`} onClick={signOut} disabled={leaving}>
             Desconectar
           </button>

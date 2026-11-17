@@ -33,6 +33,7 @@ export function SheetTeacher() {
   const [removed, setRemoved] = useState<string[]>([])
   const [students, setStudents] = useState<Profile[]>([])
   const [subs, setSubs] = useState<Record<string, Submission>>({}) // clave: exercise_id:user_id
+  const [suggestions, setSuggestions] = useState<Record<string, Suggestion>>({}) // clave: submission_id
   const [save, setSave] = useState<SaveState>('idle')
   const [dirty, setDirty] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -50,7 +51,12 @@ export function SheetTeacher() {
     setDrafts(list.map((e) => ({ ...e, key: e.id, solution: solMap[e.id] ?? '' })))
     if (ids.length) {
       const { data: sb } = await supabase.from('submissions').select('*').in('exercise_id', ids)
-      setSubs(Object.fromEntries(((sb as Submission[]) ?? []).map((x) => [`${x.exercise_id}:${x.user_id}`, x])))
+      const subList = (sb as Submission[]) ?? []
+      setSubs(Object.fromEntries(subList.map((x) => [`${x.exercise_id}:${x.user_id}`, x])))
+      if (subList.length) {
+        const { data: sg } = await supabase.from('grade_suggestions').select('*').in('submission_id', subList.map((x) => x.id))
+        setSuggestions(Object.fromEntries(((sg as Suggestion[]) ?? []).map((x) => [x.submission_id, x])))
+      }
     }
   }, [id, navigate])
 
@@ -72,6 +78,15 @@ export function SheetTeacher() {
         if (p.eventType === 'DELETE') return
         const row = p.new as Submission
         setSubs((s) => ({ ...s, [`${row.exercise_id}:${row.user_id}`]: row }))
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'grade_suggestions' }, (p) => {
+        if (p.eventType === 'DELETE') {
+          const old = p.old as { submission_id?: string }
+          if (old.submission_id) setSuggestions((m) => Object.fromEntries(Object.entries(m).filter(([k]) => k !== old.submission_id)))
+          return
+        }
+        const row = p.new as Suggestion
+        setSuggestions((m) => ({ ...m, [row.submission_id]: row }))
       })
       .subscribe()
     return () => {
@@ -181,6 +196,7 @@ export function SheetTeacher() {
           exercises={saved}
           students={students}
           subs={subs}
+          suggestions={suggestions}
           onToggleSolution={toggleSolution}
           onGraded={(s) => setSubs((m) => ({ ...m, [`${s.exercise_id}:${s.user_id}`]: s }))}
         />
@@ -327,15 +343,23 @@ function SheetEdit({ sheet, drafts, onSheet, onDraft, onDrafts, onRemove, onSave
 
 // ---------- Corrección ----------
 
+interface Suggestion {
+  submission_id: string
+  status: 'ok' | 'review'
+  comment: string
+  created_at: string
+}
+
 interface GridProps {
   exercises: DraftExercise[]
   students: Profile[]
   subs: Record<string, Submission>
+  suggestions: Record<string, Suggestion>
   onToggleSolution: (exId: string, v: boolean) => void
   onGraded: (s: Submission) => void
 }
 
-function GradeGrid({ exercises, students, subs, onToggleSolution, onGraded }: GridProps) {
+function GradeGrid({ exercises, students, subs, suggestions, onToggleSolution, onGraded }: GridProps) {
   const [open, setOpen] = useState<{ ex: number; st: number } | null>(null)
 
   if (!exercises.length) return <p className="muted">Esta hoja aún no tiene ejercicios guardados.</p>
@@ -377,7 +401,7 @@ function GradeGrid({ exercises, students, subs, onToggleSolution, onGraded }: Gr
                     <td key={ex.id}>
                       <button
                         key={s?.submitted_at ?? 'none'}
-                        className={`grade-cell st-${s?.status ?? 'none'}`}
+                        className={`grade-cell st-${s?.status ?? 'none'}${s && s.status === 'submitted' && suggestions[s.id] ? ' has-suggestion' : ''}`}
                         onClick={() => s && setOpen({ ex: ei, st: si })}
                         disabled={!s}
                         title={`${st.nombre} · ${ex.title}: ${STATUS_LABEL[s?.status ?? 'none']}`}
@@ -396,6 +420,7 @@ function GradeGrid({ exercises, students, subs, onToggleSolution, onGraded }: Gr
           index={open.ex}
           student={students[open.st]}
           sub={cell(exercises[open.ex], students[open.st])!}
+          suggestion={suggestions[cell(exercises[open.ex], students[open.st])!.id]}
           onClose={() => setOpen(null)}
           onGraded={onGraded}
           onNext={() => {
@@ -418,23 +443,25 @@ interface DrawerProps {
   index: number
   student: Profile
   sub: Submission
+  suggestion?: Suggestion
   onClose: () => void
   onGraded: (s: Submission) => void
   onNext: () => void
 }
 
-function GradeDrawer({ exercise, index, student, sub, onClose, onGraded, onNext }: DrawerProps) {
+function GradeDrawer({ exercise, index, student, sub, suggestion, onClose, onGraded, onNext }: DrawerProps) {
   const [comment, setComment] = useState(sub.comment)
   const [busy, setBusy] = useState<SubStatus | null>(null)
 
   useEffect(() => setComment(sub.comment), [sub.id, sub.comment])
 
-  async function grade(status: SubStatus) {
+  async function grade(status: SubStatus, text = comment) {
     setBusy(status)
-    const { error } = await supabase.rpc('grade_submission', { p_submission: sub.id, p_status: status, p_comment: comment })
+    const { error } = await supabase.rpc('grade_submission', { p_submission: sub.id, p_status: status, p_comment: text })
     setBusy(null)
     if (error) return alert(error.message)
-    onGraded({ ...sub, status, comment, graded_at: new Date().toISOString() })
+    if (suggestion) await supabase.from('grade_suggestions').delete().eq('submission_id', sub.id)
+    onGraded({ ...sub, status, comment: text, graded_at: new Date().toISOString() })
     if (status !== 'submitted') onNext()
   }
 
@@ -471,6 +498,20 @@ function GradeDrawer({ exercise, index, student, sub, onClose, onGraded, onNext 
           <summary>Solución</summary>
           <RichText text={exercise.solution} />
         </details>
+      )}
+      {suggestion && sub.status === 'submitted' && (
+        <div className={`suggestion st-${suggestion.status}`}>
+          <span className="suggestion-label">Claude sugiere: {suggestion.status === 'ok' ? '✓ Bien' : 'Repasar'}</span>
+          {suggestion.comment && <p>{suggestion.comment}</p>}
+          <div className="suggestion-actions">
+            <button className="btn btn-sm btn-primary" onClick={() => grade(suggestion.status, suggestion.comment)} disabled={!!busy}>
+              Aplicar
+            </button>
+            <button className="link-btn" onClick={() => setComment(suggestion.comment)}>
+              Usar el comentario
+            </button>
+          </div>
+        </div>
       )}
       <input className="input" value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Comentario (opcional)" />
       <div className="grade-actions">
