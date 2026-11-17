@@ -17,7 +17,8 @@ export function Login() {
       options: { emailRedirectTo: window.location.origin },
     })
     setBusy(false)
-    if (error) setError(error.message)
+    // El alta de correos que no son @esat.es la rechaza la base de datos.
+    if (error) setError(/esat|database error|saving new user/i.test(error.message) ? 'Usa tu correo de @esat.es' : error.message)
     else setStep('code')
   }
 
@@ -45,7 +46,7 @@ export function Login() {
               type="email"
               required
               autoFocus
-              placeholder="tu@email.com"
+              placeholder="tu@esat.es"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
