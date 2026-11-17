@@ -87,7 +87,7 @@ Todos los profesores ven todo lo de todos los alumnos.
 
 ### 9. Conector de Claude (MCP)
 Función `supabase/functions/mcp` (desplegar con "Verify JWT" desactivado: autentica con su propio token).
-Cada profesor genera su token en **Menú de usuario → Conectar con Claude**. En Claude se añade un conector personalizado con la URL `https://<ref>.supabase.co/functions/v1/mcp`, «No sign-in» y la cabecera `X-Wakkpen-Token: <token>` (Claude no permite usar `Authorization` como cabecera propia).
+Cada profesor genera su token en **Menú de usuario → Conectar con Claude**. En Claude se añade un conector personalizado con la URL `https://<ref>.supabase.co/functions/v1/mcp`, «No sign-in» y la cabecera `X-API-Key: <token>` (elegida del desplegable; los nombres propios necesitan aprobación de Anthropic). La función acepta el token en cualquier cabecera.
 Herramientas: listar/ver/crear/editar hojas y ejercicios (siempre en borrador), listar alumnos, leer entregas y `suggest_grade`
 (sugerencia que el profe aplica o descarta). Claude no puede publicar hojas ni soluciones ni corregir.
 Siguiente paso previsto: OAuth por profesor y clases, sustituyendo el token de la URL.

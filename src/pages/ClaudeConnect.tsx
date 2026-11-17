@@ -12,7 +12,7 @@ interface Token {
 }
 
 const MCP_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/mcp`
-const HEADER = 'X-Wakkpen-Token'
+const HEADER = 'X-API-Key'
 
 export function ClaudeConnect() {
   const [tokens, setTokens] = useState<Token[] | null>(null)
@@ -98,7 +98,7 @@ export function ClaudeConnect() {
         )}
         <ol className="mcp-steps">
           <li>En Claude: Ajustes → Conectores → Añadir conector personalizado. Pega la URL.</li>
-          <li>Autenticación: «No sign-in». En «Request headers» añade la cabecera {HEADER} con el token.</li>
+          <li>Autenticación: «No sign-in». En «Request headers» elige {HEADER} en el desplegable y pega el token.</li>
           <li>Pídele, por ejemplo: «Crea en Wakkpen una hoja de 10 ejercicios de selectores CSS».</li>
         </ol>
       </div>
