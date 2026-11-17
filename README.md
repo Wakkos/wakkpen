@@ -78,6 +78,22 @@ Después actualiza Site URL y Redirect URLs en Supabase con ese dominio.
 
 Cada alumno conecta su GitHub desde el editor (scope `public_repo`: solo repos públicos). El token se guarda en `github_tokens`, que solo puede leer su dueño. El commit sube `index.html`, `style.css` (y `style.scss`), `script.js` y `assets/`, con las URLs de los archivos convertidas en rutas relativas.
 
+### 8. Varios profesores
+`settings.teacher_email` admite una lista separada por comas:
+```sql
+update public.settings set value = 'profe1@x.com, profe2@y.com' where key = 'teacher_email';
+```
+Todos los profesores ven todo lo de todos los alumnos.
+
+## Funciones del aula
+- **Muro** (`/profesor/muro`): vista previa en vivo de todos los alumnos; clic para pantalla completa, flechas para pasar, Esc para salir.
+- **Levantar la mano**: botón ✋ del alumno; el profe la ve en "En vivo" y en el muro y la baja con un clic.
+- **Historial** (`/profesor/pen/:id/historial`): reproducción del pen a partir de copias cada 15 s.
+- **Formatear**: solo en la vista del profe y sin tocar el código del alumno.
+- **Ver en el móvil**: QR con enlace secreto `/live/<token>`, sin login, actualizado en vivo por Realtime broadcast.
+- **Ventana aparte**: la vista previa en otra ventana del navegador, sincronizada por BroadcastChannel.
+- **Editor**: Emmet (Tab), Ctrl+D, ocultar paneles, vista previa abajo o a la derecha, tamaños de dispositivo y librerías.
+
 ## A tener en cuenta
 - **Pausa por inactividad**: en el plan Free, Supabase pausa el proyecto tras 7 días sin uso. Se reactiva desde el panel.
 - **Archivos**: 2 MB por archivo y 10 archivos por usuario. Tipos: png, jpg, webp, gif, svg, woff, woff2, json.

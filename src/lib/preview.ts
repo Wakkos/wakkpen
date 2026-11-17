@@ -1,3 +1,5 @@
+import { libTags } from './libs'
+
 // Documento de la vista previa. Se carga en un iframe sandbox="allow-scripts" (origen opaco),
 // así que el código del alumno no puede leer la sesión ni el localStorage de la app.
 
@@ -50,17 +52,20 @@ function escapeScriptEnd(code: string): string {
   return code.replace(/<\/script/gi, '<\\/script')
 }
 
-export function buildPreviewDoc(html: string, css: string, js: string): string {
+export function buildPreviewDoc(html: string, css: string, js: string, libs?: string[]): string {
+  const tags = libTags(libs)
   const head = `<!doctype html>
 <html lang="es">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 ${bridge}
+${tags.head}
 <style>${css}</style>
 </head>
 <body>
 ${html}
+${tags.scripts}
 `
   // Línea en la que empieza el JS del alumno, para que los errores apunten a su código.
   const jsStart = head.split('\n').length + 2
@@ -72,17 +77,20 @@ ${escapeScriptEnd(js)}
 </html>`
 }
 
-export function buildExportDoc(html: string, title: string): string {
+export function buildExportDoc(html: string, title: string, libs?: string[]): string {
+  const tags = libTags(libs)
   return `<!doctype html>
 <html lang="es">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${title.replace(/</g, '&lt;')}</title>
+${tags.head}
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
 ${html}
+${tags.scripts}
   <script src="script.js"></script>
 </body>
 </html>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { formatPen } from '../lib/format'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import type { Pen, Profile } from '../lib/types'
@@ -21,6 +22,8 @@ export function TeacherPen() {
   const [missing, setMissing] = useState(false)
   const [filesOpen, setFilesOpen] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const [formatted, setFormatted] = useState(false)
+  const [fmt, setFmt] = useState<{ html: string; css: string; js: string } | null>(null)
   const live = useEditingPresence()
   const now = useNow(5000)
 
@@ -53,6 +56,15 @@ export function TeacherPen() {
       supabase.removeChannel(channel)
     }
   }, [id])
+
+  useEffect(() => {
+    if (!formatted || !pen) return setFmt(null)
+    let cancelled = false
+    formatPen(pen).then((f) => !cancelled && setFmt(f))
+    return () => {
+      cancelled = true
+    }
+  }, [formatted, pen])
 
   if (missing)
     return (
@@ -88,6 +100,12 @@ export function TeacherPen() {
           <span className="viewer-title">{pen.title}</span>
           <span className="viewer-time">{timeAgo(pen.updated_at, now)}</span>
           <div className="editor-actions">
+            <button className={`btn btn-ghost btn-sm${formatted ? ' is-toggled' : ''}${formatted && !fmt ? ' is-busy' : ''}`} onClick={() => setFormatted((f) => !f)} aria-pressed={formatted}>
+              Formatear
+            </button>
+            <Link className="btn btn-ghost btn-sm" to={`/profesor/pen/${pen.id}/historial`}>
+              Historial
+            </Link>
             {pen.gh_repo && (
               <a
                 className="btn btn-ghost btn-sm"
@@ -116,15 +134,15 @@ export function TeacherPen() {
       </TopBar>
       <Workspace
         panes={[
-          { key: 'html', header: <span className="pane-title">HTML</span>, body: <CodeEditor lang="html" value={pen.html} readOnly /> },
+          { key: 'html', header: <span className="pane-title">HTML</span>, body: <CodeEditor lang="html" value={fmt?.html ?? pen.html} readOnly /> },
           {
             key: 'css',
             header: <span className="pane-title">{pen.css_lang.toUpperCase()}</span>,
-            body: <CodeEditor lang={pen.css_lang === 'scss' ? 'scss' : 'css'} value={pen.css} readOnly />,
+            body: <CodeEditor lang={pen.css_lang === 'scss' ? 'scss' : 'css'} value={fmt?.css ?? pen.css} readOnly />,
           },
-          { key: 'js', header: <span className="pane-title">JS</span>, body: <CodeEditor lang="js" value={pen.js} readOnly /> },
+          { key: 'js', header: <span className="pane-title">JS</span>, body: <CodeEditor lang="js" value={fmt?.js ?? pen.js} readOnly /> },
         ]}
-        bottom={<Preview html={pen.html} css={pen.css} cssLang={pen.css_lang} js={pen.js} delay={300} />}
+        preview={<Preview html={pen.html} css={pen.css} cssLang={pen.css_lang} js={pen.js} libs={pen.libs} delay={300} />}
       />
       {filesOpen && <FilesPanel penId={pen.id} userId={session.user.id} readOnly onClose={() => setFilesOpen(false)} />}
     </div>

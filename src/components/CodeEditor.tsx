@@ -1,24 +1,30 @@
 import { useEffect, useRef } from 'react'
 import { basicSetup } from 'codemirror'
 import { EditorView, keymap } from '@codemirror/view'
-import { Compartment, EditorState } from '@codemirror/state'
+import { Compartment, EditorState, Prec } from '@codemirror/state'
 import { indentWithTab } from '@codemirror/commands'
 import { html } from '@codemirror/lang-html'
 import { css } from '@codemirror/lang-css'
 import { sass } from '@codemirror/lang-sass'
 import { javascript } from '@codemirror/lang-javascript'
 import { oneDark } from '@codemirror/theme-one-dark'
+import { emmetConfig, expandAbbreviation, EmmetKnownSyntax } from '@emmetio/codemirror6-plugin'
 
 export type EditorLang = 'html' | 'css' | 'scss' | 'js'
+
+// Emmet en HTML y CSS/SCSS: Tab expande la abreviatura (h1, ul>li*3, m10…); si no hay nada que expandir, indenta.
+function emmet(syntax: EmmetKnownSyntax) {
+  return [emmetConfig.of({ syntax }), Prec.high(keymap.of([{ key: 'Tab', run: expandAbbreviation }]))]
+}
 
 function langExt(lang: EditorLang) {
   switch (lang) {
     case 'html':
-      return html()
+      return [html({ autoCloseTags: true }), emmet(EmmetKnownSyntax.html)]
     case 'css':
-      return css()
+      return [css(), emmet(EmmetKnownSyntax.css)]
     case 'scss':
-      return sass()
+      return [sass(), emmet(EmmetKnownSyntax.scss)]
     case 'js':
       return javascript()
   }

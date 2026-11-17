@@ -193,7 +193,7 @@ export async function buildPenFiles(pen: Pen): Promise<FileEntry[]> {
   if (error) throw new Error(`No se puede hacer commit con errores de SCSS: ${error}`)
 
   const files: FileEntry[] = [
-    { path: 'index.html', content: buildExportDoc(html, pen.title), encoding: 'utf-8' },
+    { path: 'index.html', content: buildExportDoc(html, pen.title, pen.libs), encoding: 'utf-8' },
     { path: 'style.css', content: css, encoding: 'utf-8' },
     { path: 'script.js', content: js, encoding: 'utf-8' },
   ]

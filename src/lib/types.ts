@@ -7,6 +7,7 @@ export interface Profile {
   nombre: string
   role: Role
   created_at: string
+  hand_raised_at: string | null
 }
 
 export interface Pen {
@@ -25,6 +26,8 @@ export interface Pen {
   gh_commit_sha: string | null
   gh_commit_at: string | null
   gh_pages_url: string | null
+  libs: string[]
+  live_token: string
 }
 
 export interface PenWithOwner extends Pen {
@@ -43,3 +46,12 @@ export interface PenFile {
 }
 
 export type SaveState = 'idle' | 'saving' | 'saved' | 'error'
+
+export interface Snapshot {
+  id: string
+  html: string
+  css: string
+  css_lang: CssLang
+  js: string
+  created_at: string
+}

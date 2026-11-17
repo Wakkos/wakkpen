@@ -6,6 +6,7 @@ import type { Pen } from '../lib/types'
 import { deletePenWithFiles } from '../lib/files'
 import { timeAgo } from '../lib/export'
 import { Page } from '../components/Layout'
+import { HandButton } from '../components/HandButton'
 
 export function MyPens() {
   const { session } = useAuth()
@@ -49,9 +50,12 @@ export function MyPens() {
     <Page>
       <div className="page-head">
         <h1>Mis pens</h1>
-        <button className={`btn btn-primary${creating ? ' is-busy' : ''}`} onClick={create} disabled={creating}>
+        <div className="page-head-actions">
+          <HandButton />
+          <button className={`btn btn-primary${creating ? ' is-busy' : ''}`} onClick={create} disabled={creating}>
           Nuevo pen
-        </button>
+          </button>
+        </div>
       </div>
       {error && <p className="form-error">{error}</p>}
       {pens === null ? (

@@ -1,70 +1,24 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
-import type { Pen, Profile } from '../lib/types'
 import { timeAgo } from '../lib/export'
 import { useEditingPresence, useNow } from '../lib/useLive'
+import { useClassroom } from '../lib/useClass'
 import { LiveDot } from '../components/StatusDot'
 import { GitHubMark } from '../components/GitHubPanel'
 import { Page } from '../components/Layout'
 
-type PenRow = Pick<Pen, 'id' | 'owner_id' | 'title' | 'css_lang' | 'updated_at' | 'gh_repo'>
-const COLS = 'id, owner_id, title, css_lang, updated_at, gh_repo'
-
 export function Teacher() {
   const navigate = useNavigate()
-  const [pens, setPens] = useState<PenRow[] | null>(null)
-  const [profiles, setProfiles] = useState<Record<string, Profile>>({})
+  const { profiles, pens, flash, lowerHand } = useClassroom()
   const [filter, setFilter] = useState('')
-  const [flash, setFlash] = useState<Record<string, number>>({})
   const live = useEditingPresence()
   const now = useNow()
-
-  useEffect(() => {
-    supabase
-      .from('profiles')
-      .select('*')
-      .then(({ data }) => setProfiles(Object.fromEntries(((data as Profile[]) ?? []).map((p) => [p.id, p]))))
-    supabase
-      .from('pens')
-      .select(COLS)
-      .order('updated_at', { ascending: false })
-      .then(({ data }) => setPens((data as PenRow[]) ?? []))
-
-    const channel = supabase
-      .channel('teacher-pens')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'pens' }, (payload) => {
-        if (payload.eventType === 'DELETE') {
-          const oldId = (payload.old as { id?: string }).id
-          setPens((prev) => prev?.filter((p) => p.id !== oldId) ?? prev)
-          return
-        }
-        const row = payload.new as Pen
-        const slim: PenRow = { id: row.id, owner_id: row.owner_id, title: row.title, css_lang: row.css_lang, updated_at: row.updated_at, gh_repo: row.gh_repo }
-        setPens((prev) => {
-          const rest = (prev ?? []).filter((p) => p.id !== slim.id)
-          return [slim, ...rest]
-        })
-        setFlash((f) => ({ ...f, [slim.id]: Date.now() }))
-        if (payload.eventType === 'INSERT') {
-          supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', slim.owner_id)
-            .maybeSingle()
-            .then(({ data }) => data && setProfiles((p) => ({ ...p, [data.id]: data as Profile })))
-        }
-      })
-      .subscribe()
-    return () => {
-      supabase.removeChannel(channel)
-    }
-  }, [])
 
   const students = useMemo(
     () => Object.values(profiles).filter((p) => p.role === 'student').sort((a, b) => a.nombre.localeCompare(b.nombre)),
     [profiles],
   )
+  const hands = students.filter((s) => s.hand_raised_at).sort((a, b) => a.hand_raised_at!.localeCompare(b.hand_raised_at!))
   const shown = (pens ?? []).filter((p) => !filter || p.owner_id === filter)
   const activeCount = Object.keys(live).length
 
@@ -84,6 +38,17 @@ export function Teacher() {
           ))}
         </select>
       </div>
+
+      {hands.length > 0 && (
+        <div className="hands">
+          {hands.map((s) => (
+            <button key={s.id} className="hand-chip is-big" onClick={() => lowerHand(s.id)} title="Bajar la mano">
+              ✋ <strong>{s.nombre}</strong> <span>{timeAgo(s.hand_raised_at!, now)}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {pens === null ? (
         <div className="skeleton-list" />
       ) : shown.length === 0 ? (
@@ -97,11 +62,14 @@ export function Teacher() {
               <li key={p.id}>
                 <button
                   key={flash[p.id] ?? 0}
-                  className={`live-row${flash[p.id] ? ' is-flash' : ''}`}
+                  className={`live-row${flash[p.id] ? ' is-flash' : ''}${owner?.hand_raised_at ? ' is-raised' : ''}`}
                   onClick={() => navigate(`/profesor/pen/${p.id}`)}
                 >
                   <LiveDot active={!!info} typing={info?.typing} />
-                  <span className="live-owner">{owner?.nombre ?? '…'}</span>
+                  <span className="live-owner">
+                    {owner?.hand_raised_at && <span aria-hidden>✋ </span>}
+                    {owner?.nombre ?? '…'}
+                  </span>
                   <span className="live-title">{p.title}</span>
                   <span className="live-tag">
                     {p.gh_repo && (

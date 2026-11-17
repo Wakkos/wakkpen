@@ -25,6 +25,7 @@ export function TopBar({ children }: { children?: ReactNode }) {
           <NavLink to="/profesor" end>
             En vivo
           </NavLink>
+          <NavLink to="/profesor/muro">Muro</NavLink>
           <NavLink to="/profesor/alumnos">Alumnos</NavLink>
           <NavLink to="/pens">Mis pens</NavLink>
         </nav>

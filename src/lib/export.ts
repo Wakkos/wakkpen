@@ -19,7 +19,7 @@ export async function exportPen(pen: Pen): Promise<void> {
   const zip = new JSZip()
   const { css } = await compileStyles(pen.css, pen.css_lang)
 
-  zip.file('index.html', buildExportDoc(pen.html, pen.title))
+  zip.file('index.html', buildExportDoc(pen.html, pen.title, pen.libs))
   zip.file('style.css', css)
   if (pen.css_lang === 'scss') zip.file('style.scss', pen.css)
   zip.file('script.js', pen.js)
