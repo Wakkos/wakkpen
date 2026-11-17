@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, NavLink } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { supabase } from '../lib/supabase'
+import { NotificationBell } from './NotificationBell'
 
 export function Logo() {
   return (
@@ -96,6 +97,7 @@ export function TopBar({ children }: { children?: ReactNode }) {
         )}
       </nav>
       <div className="topbar-slot">{children}</div>
+      <NotificationBell />
       <UserMenu />
     </header>
   )
