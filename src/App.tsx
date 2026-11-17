@@ -17,6 +17,7 @@ import { TeacherSheets } from './pages/TeacherSheets'
 import { SheetTeacher } from './pages/SheetTeacher'
 import { ClaudeConnect } from './pages/ClaudeConnect'
 import { NotificationsProvider } from './lib/notifications'
+import { Bienvenida } from './components/Bienvenida'
 
 function TeacherOnly({ children }: { children: ReactNode }) {
   const { profile } = useAuth()
@@ -30,6 +31,7 @@ function Gate() {
   const home = profile?.role === 'teacher' ? '/profesor' : '/pens'
   return (
     <NotificationsProvider>
+    <Bienvenida />
     <Routes>
       <Route path="/" element={<Navigate to={home} replace />} />
       <Route path="/pens" element={<MyPens />} />
