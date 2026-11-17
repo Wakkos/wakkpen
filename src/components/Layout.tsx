@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, NavLink } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { supabase } from '../lib/supabase'
@@ -14,26 +14,84 @@ export function Logo() {
   )
 }
 
+function UserMenu() {
+  const { profile, session } = useAuth()
+  const [open, setOpen] = useState(false)
+  const [leaving, setLeaving] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false)
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false)
+    window.addEventListener('mousedown', onDown)
+    window.addEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('mousedown', onDown)
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  const name = profile?.nombre || session?.user.email || ''
+  const teacher = profile?.role === 'teacher'
+
+  async function signOut() {
+    setLeaving(true)
+    await supabase.auth.signOut()
+  }
+
+  return (
+    <div className="user-menu" ref={ref}>
+      <button className={`avatar${open ? ' is-open' : ''}`} onClick={() => setOpen((o) => !o)} aria-haspopup="menu" aria-expanded={open} title={name}>
+        {name.slice(0, 1).toUpperCase()}
+      </button>
+      {open && (
+        <div className="user-pop" role="menu">
+          <div className="user-info">
+            <strong>{profile?.nombre}</strong>
+            <span>{session?.user.email}</span>
+            <span className={`tag${teacher ? '' : ' tag-muted'}`}>{teacher ? 'Profesor' : 'Alumno'}</span>
+          </div>
+          <Link to="/pens" role="menuitem" onClick={() => setOpen(false)}>
+            Mis pens
+          </Link>
+          <Link to="/ejercicios" role="menuitem" onClick={() => setOpen(false)}>
+            Ejercicios
+          </Link>
+          <button role="menuitem" className={`user-signout${leaving ? ' is-busy' : ''}`} onClick={signOut} disabled={leaving}>
+            Desconectar
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function TopBar({ children }: { children?: ReactNode }) {
   const { profile } = useAuth()
   const teacher = profile?.role === 'teacher'
   return (
     <header className="topbar">
       <Logo />
-      {teacher && (
-        <nav className="topnav">
-          <NavLink to="/profesor" end>
-            En vivo
-          </NavLink>
-          <NavLink to="/profesor/muro">Muro</NavLink>
-          <NavLink to="/profesor/alumnos">Alumnos</NavLink>
-          <NavLink to="/pens">Mis pens</NavLink>
-        </nav>
-      )}
+      <nav className="topnav">
+        {teacher ? (
+          <>
+            <NavLink to="/profesor" end>
+              En vivo
+            </NavLink>
+            <NavLink to="/profesor/muro">Muro</NavLink>
+            <NavLink to="/profesor/ejercicios">Ejercicios</NavLink>
+            <NavLink to="/profesor/alumnos">Alumnos</NavLink>
+          </>
+        ) : (
+          <>
+            <NavLink to="/pens">Mis pens</NavLink>
+            <NavLink to="/ejercicios">Ejercicios</NavLink>
+          </>
+        )}
+      </nav>
       <div className="topbar-slot">{children}</div>
-      <button className="btn btn-ghost btn-sm" onClick={() => supabase.auth.signOut()} title={profile?.email}>
-        Salir
-      </button>
+      <UserMenu />
     </header>
   )
 }

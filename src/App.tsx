@@ -11,6 +11,10 @@ import { Wall } from './pages/Wall'
 import { History } from './pages/History'
 import { Popout } from './pages/Popout'
 import { Live } from './pages/Live'
+import { Sheets } from './pages/Sheets'
+import { SheetStudent } from './pages/SheetStudent'
+import { TeacherSheets } from './pages/TeacherSheets'
+import { SheetTeacher } from './pages/SheetTeacher'
 
 function TeacherOnly({ children }: { children: ReactNode }) {
   const { profile } = useAuth()
@@ -28,6 +32,10 @@ function Gate() {
       <Route path="/pens" element={<MyPens />} />
       <Route path="/pen/:id" element={<Editor />} />
       <Route path="/pen/:id/ventana" element={<Popout />} />
+      <Route path="/ejercicios" element={<Sheets />} />
+      <Route path="/ejercicios/:id" element={<SheetStudent />} />
+      <Route path="/profesor/ejercicios" element={<TeacherOnly><TeacherSheets /></TeacherOnly>} />
+      <Route path="/profesor/ejercicios/:id" element={<TeacherOnly><SheetTeacher /></TeacherOnly>} />
       <Route path="/profesor" element={<TeacherOnly><Teacher /></TeacherOnly>} />
       <Route path="/profesor/pen/:id" element={<TeacherOnly><TeacherPen /></TeacherOnly>} />
       <Route path="/profesor/alumnos" element={<TeacherOnly><Students /></TeacherOnly>} />

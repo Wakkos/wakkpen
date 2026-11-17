@@ -215,6 +215,9 @@ export function Editor() {
     <div className="app app-editor">
       <TopBar>
         <div className="editor-bar">
+          <Link to={readOnly ? '/profesor' : '/pens'} className="back-btn" title="Volver" aria-label="Volver">
+            ‹
+          </Link>
           <input
             className="title-input"
             value={fields.title}

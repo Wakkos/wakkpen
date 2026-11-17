@@ -95,6 +95,9 @@ export function TeacherPen() {
     <div className="app app-editor">
       <TopBar>
         <div className="editor-bar">
+          <Link to="/profesor" className="back-btn" title="Volver" aria-label="Volver">
+            ‹
+          </Link>
           <LiveDot active={!!info} typing={info?.typing} />
           <span className="viewer-owner">{owner?.nombre ?? '…'}</span>
           <span className="viewer-title">{pen.title}</span>
