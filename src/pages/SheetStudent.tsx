@@ -14,7 +14,8 @@ type PenLite = Pick<Pen, 'id' | 'title'>
 
 export function SheetStudent() {
   const { id } = useParams<{ id: string }>()
-  const { session } = useAuth()
+  const { session, profile } = useAuth()
+  const preview = profile?.role === 'teacher'
   const [sheet, setSheet] = useState<Sheet | null>(null)
   const [missing, setMissing] = useState(false)
   const [exercises, setExercises] = useState<Exercise[]>([])
@@ -88,8 +89,8 @@ export function SheetStudent() {
     <Page>
       <div className="page-head">
         <div>
-          <Link to="/ejercicios" className="back-link">
-            ‹ Ejercicios
+          <Link to={preview ? `/profesor/ejercicios/${sheet.id}` : '/ejercicios'} className="back-link">
+            ‹ {preview ? 'Volver a corregir' : 'Ejercicios'}
           </Link>
           <h1>{sheet.title}</h1>
         </div>
@@ -100,6 +101,11 @@ export function SheetStudent() {
           <HandButton />
         </div>
       </div>
+      {preview && (
+        <p className="preview-banner">
+          Vista de alumno{sheet.published ? '' : ' · borrador'}. Puedes escribir para probar, pero no se entrega nada.
+        </p>
+      )}
       {sheet.intro && <RichText text={sheet.intro} className="sheet-intro" />}
       <ol className="ex-list">
         {exercises.map((ex, i) => (
@@ -110,6 +116,7 @@ export function SheetStudent() {
             solution={ex.solution_published ? solutions[ex.id] : undefined}
             sub={subs[ex.id]}
             pens={pens}
+            preview={preview}
             onSaved={(s) => setSubs((m) => ({ ...m, [s.exercise_id]: s }))}
           />
         ))}
@@ -124,10 +131,11 @@ interface CardProps {
   solution?: string
   sub?: Submission
   pens: PenLite[]
+  preview?: boolean
   onSaved: (s: Submission) => void
 }
 
-function ExerciseCard({ n, exercise, solution, sub, pens, onSaved }: CardProps) {
+function ExerciseCard({ n, exercise, solution, sub, pens, preview, onSaved }: CardProps) {
   const [answer, setAnswer] = useState(sub?.answer ?? '')
   const [penId, setPenId] = useState(sub?.pen_snapshot?.pen_id ?? '')
   const [state, setState] = useState<SaveState>('idle')
@@ -203,7 +211,7 @@ function ExerciseCard({ n, exercise, solution, sub, pens, onSaved }: CardProps) 
         {!locked && (
           <>
             <StatusDot state={state} />
-            <button className={`btn btn-primary btn-sm${state === 'saving' ? ' is-busy' : ''}`} onClick={submit} disabled={state === 'saving' || (!changed && !!sub) || (!answer.trim() && !penId)}>
+            <button className={`btn btn-primary btn-sm${state === 'saving' ? ' is-busy' : ''}`} onClick={submit} disabled={preview || state === 'saving' || (!changed && !!sub) || (!answer.trim() && !penId)}>
               {sub ? 'Actualizar' : 'Entregar'}
             </button>
           </>

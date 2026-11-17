@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import type { Profile, SaveState } from '../lib/types'
 import {
@@ -150,6 +150,9 @@ export function SheetTeacher() {
         <input className="title-input sheet-title" value={sheet.title} onChange={(e) => patchSheet({ title: e.target.value })} aria-label="Título de la hoja" />
         <div className="page-head-actions">
           <StatusDot state={save} />
+          <Link className="btn btn-ghost btn-sm" to={`/ejercicios/${sheet.id}`}>
+            Vista alumno
+          </Link>
           <button className={`btn btn-sm ${sheet.published ? 'btn-ghost' : 'btn-primary'}`} onClick={togglePublished}>
             {sheet.published ? 'Despublicar' : 'Publicar hoja'}
           </button>

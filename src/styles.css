@@ -378,6 +378,7 @@ a.btn { text-decoration: none; }
 
 .progress { display: block; height: 4px; border-radius: 2px; background: var(--bg-hover); overflow: hidden; }
 .progress span { display: block; height: 100%; background: var(--accent); transition: width .4s ease; }
+.preview-banner { margin: 0 0 16px; padding: 8px 12px; border-radius: 8px; border: 1px dashed var(--accent); color: var(--accent); font-size: 13px; }
 .sheet-intro { color: var(--muted); margin-bottom: 18px; }
 .rich p { margin: 0 0 6px; }
 .rich code { font-family: var(--font-mono); font-size: .9em; padding: 1px 5px; border-radius: 4px; background: var(--bg-hover); color: #ffb37a; }
