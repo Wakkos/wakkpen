@@ -1,12 +1,12 @@
 // Servidor MCP de Wakkpen para Claude (transporte HTTP, JSON-RPC sin streaming).
-// Autenticación: token secreto del profesor en la URL (/functions/v1/mcp/<token>) o en "Authorization: Bearer <token>".
+// Autenticación: token del profesor en la cabecera "X-Wakkpen-Token" (recomendado), en "Authorization: Bearer" o al final de la URL.
 // Todo se hace a nombre del profesor dueño del token. Claude puede crear y editar hojas en borrador y leer entregas;
 // no puede publicar hojas ni soluciones, ni corregir: solo deja sugerencias que el profe confirma.
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2'
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, content-type, mcp-protocol-version, mcp-session-id',
+  'Access-Control-Allow-Headers': 'authorization, content-type, mcp-protocol-version, mcp-session-id, x-wakkpen-token',
   'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
 }
 
@@ -278,7 +278,7 @@ Deno.serve(async (req) => {
   // Token: último segmento de la ruta o cabecera Authorization.
   const url = new URL(req.url)
   const fromPath = url.pathname.split('/').filter(Boolean).pop() ?? ''
-  const fromHeader = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '')
+  const fromHeader = req.headers.get('X-Wakkpen-Token') ?? (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '')
   const token = fromPath.startsWith('wkp_') ? fromPath : fromHeader.startsWith('wkp_') ? fromHeader : ''
   if (!token) return json({ error: 'Falta el token' }, 401)
 

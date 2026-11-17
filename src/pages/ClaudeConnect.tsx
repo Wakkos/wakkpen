@@ -11,13 +11,15 @@ interface Token {
   last_used_at: string | null
 }
 
-const BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/mcp/`
+const MCP_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/mcp`
+const HEADER = 'X-Wakkpen-Token'
 
 export function ClaudeConnect() {
   const [tokens, setTokens] = useState<Token[] | null>(null)
   const [fresh, setFresh] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const [copied, setCopied] = useState(false)
+  const [copied, setCopied] = useState<string | null>(null)
+  const [reveal, setReveal] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   async function load() {
@@ -34,7 +36,8 @@ export function ClaudeConnect() {
     const { data, error } = await supabase.rpc('create_mcp_token', { p_label: 'Claude' })
     setBusy(false)
     if (error) return setError(error.message)
-    setFresh(`${BASE}${data as string}`)
+    setFresh(data as string)
+    setReveal(false)
     load()
   }
 
@@ -44,12 +47,17 @@ export function ClaudeConnect() {
     load()
   }
 
-  async function copy() {
-    if (!fresh) return
-    await navigator.clipboard.writeText(fresh)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
+  async function copy(key: string, value: string) {
+    await navigator.clipboard.writeText(value)
+    setCopied(key)
+    setTimeout(() => setCopied((c) => (c === key ? null : c)), 1500)
   }
+
+  const CopyBtn = ({ k, value }: { k: string; value: string }) => (
+    <button className={`btn btn-sm ${copied === k ? 'is-done btn-ghost' : 'btn-ghost'}`} onClick={() => copy(k, value)}>
+      {copied === k ? 'Copiado' : 'Copiar'}
+    </button>
+  )
 
   return (
     <Page>
@@ -60,22 +68,40 @@ export function ClaudeConnect() {
         </button>
       </div>
 
-      {fresh && (
-        <div className="mcp-fresh">
+      <div className="mcp-fields">
+        <label className="field">
+          <span>URL del servidor</span>
           <div className="mcp-url">
-            <code>{fresh}</code>
-            <button className={`btn btn-sm ${copied ? 'is-done btn-ghost' : 'btn-primary'}`} onClick={copy}>
-              {copied ? 'Copiado' : 'Copiar'}
-            </button>
+            <code>{MCP_URL}</code>
+            <CopyBtn k="url" value={MCP_URL} />
           </div>
-          <ol className="mcp-steps">
-            <li>En Claude: Ajustes → Conectores → Añadir conector personalizado.</li>
-            <li>Pega el enlace y guarda.</li>
-            <li>Pídele por ejemplo: «Crea en Wakkpen una hoja de 10 ejercicios de selectores CSS».</li>
-          </ol>
-          <p className="hint left">Solo se muestra ahora. Quien tenga este enlace actúa como tú en Wakkpen: no lo compartas.</p>
-        </div>
-      )}
+        </label>
+        <label className="field">
+          <span>Nombre de la cabecera</span>
+          <div className="mcp-url">
+            <code>{HEADER}</code>
+            <CopyBtn k="header" value={HEADER} />
+          </div>
+        </label>
+        {fresh && (
+          <label className="field mcp-token">
+            <span>Token (valor de la cabecera)</span>
+            <div className="mcp-url">
+              <code className={reveal ? '' : 'is-hidden'}>{reveal ? fresh : '•'.repeat(32)}</code>
+              <button className="btn btn-sm btn-ghost" onClick={() => setReveal((r) => !r)}>
+                {reveal ? 'Ocultar' : 'Ver token'}
+              </button>
+              <CopyBtn k="token" value={fresh} />
+            </div>
+            <span className="hint left">Solo se muestra ahora. Quien tenga este token actúa como tú en Wakkpen.</span>
+          </label>
+        )}
+        <ol className="mcp-steps">
+          <li>En Claude: Ajustes → Conectores → Añadir conector personalizado. Pega la URL.</li>
+          <li>Autenticación: «No sign-in». En «Request headers» añade la cabecera {HEADER} con el token.</li>
+          <li>Pídele, por ejemplo: «Crea en Wakkpen una hoja de 10 ejercicios de selectores CSS».</li>
+        </ol>
+      </div>
 
       {error && <p className="form-error">{error}</p>}
 
