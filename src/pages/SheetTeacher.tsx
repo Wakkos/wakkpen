@@ -131,6 +131,16 @@ export function SheetTeacher() {
     await persist(next)
   }
 
+  async function removeSheet() {
+    if (!sheet) return
+    const n = Object.keys(subs).length
+    const extra = n ? ` Se borran también ${n === 1 ? 'la entrega' : `las ${n} entregas`} de los alumnos.` : ''
+    if (!confirm(`¿Borrar la hoja "${sheet.title}"?${extra} No se puede deshacer.`)) return
+    const { error } = await supabase.from('exercise_sheets').delete().eq('id', sheet.id)
+    if (error) return setError(error.message)
+    navigate('/profesor/ejercicios')
+  }
+
   async function toggleSolution(exId: string, value: boolean) {
     const next = drafts.map((d) => (d.id === exId ? { ...d, solution_published: value } : d))
     setDrafts(next)
@@ -159,6 +169,9 @@ export function SheetTeacher() {
           </Link>
           <button className={`btn btn-sm ${sheet.published ? 'btn-ghost' : 'btn-primary'}`} onClick={togglePublished}>
             {sheet.published ? 'Despublicar' : 'Publicar hoja'}
+          </button>
+          <button className="btn btn-sm btn-danger" onClick={removeSheet}>
+            Borrar
           </button>
         </div>
       </div>
