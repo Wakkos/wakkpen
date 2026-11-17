@@ -1,7 +1,7 @@
 // Servidor MCP de Wakkpen para Claude (transporte HTTP, JSON-RPC sin streaming).
 // Autenticación: token del profesor en la cabecera "X-Wakkpen-Token" (recomendado), en "Authorization: Bearer" o al final de la URL.
 // Todo se hace a nombre del profesor dueño del token. Claude puede crear y editar hojas en borrador y leer entregas;
-// no puede publicar hojas ni soluciones, ni corregir: solo deja sugerencias que el profe confirma.
+// no puede publicar hojas ni soluciones. Corrige solo si el profe lo pide (grade_submission); si no, sugiere (suggest_grade).
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2'
 
 const cors = {
@@ -19,7 +19,10 @@ const exerciseSchema = {
     answer_kind: { type: 'string', enum: ['code', 'text'], description: 'code: el alumno escribe código; text: responde con texto (predicciones, explicaciones)' },
     lang: { type: 'string', enum: LANGS, description: 'Lenguaje del cuadro de código (si answer_kind es code)' },
     allow_pen: { type: 'boolean', description: 'Si el alumno puede adjuntar una copia de su pen' },
-    solution: { type: 'string', description: 'Solución. Queda oculta hasta que el profesor la publique.' },
+    solution: { type: 'string', description: 'Solución: solo el código que escribiría el alumno. Queda oculta hasta que el profesor la publique.' },
+    base_html: { type: 'string', description: 'HTML de base sobre el que trabaja el alumno (lo ve en solo lectura). Imprescindible si el alumno escribe CSS o JS.' },
+    base_css: { type: 'string', description: 'CSS de base opcional (por ejemplo si el alumno escribe HTML).' },
+    show_preview: { type: 'boolean', description: 'Si el alumno ve la vista previa mientras escribe. Por defecto no: la ve al ser corregido.' },
   },
   required: ['title', 'prompt'],
 }
@@ -97,6 +100,20 @@ const TOOLS = [
     },
   },
   {
+    name: 'grade_submission',
+    description:
+      'Corrige una entrega de verdad (ok o review) con un comentario breve para el alumno. Úsala SOLO cuando el profesor pida expresamente que corrijas; si no, usa suggest_grade. Compara la respuesta con la base y la solución que da get_submissions. Queda marcada como corregida por Claude.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        submission_id: { type: 'string' },
+        status: { type: 'string', enum: ['ok', 'review'] },
+        comment: { type: 'string', description: 'Comentario breve, en español, dirigido al alumno' },
+      },
+      required: ['submission_id', 'status'],
+    },
+  },
+  {
     name: 'suggest_grade',
     description:
       'Propone una corrección para una entrega (ok o review) con un comentario breve para el alumno. NO se aplica: el profesor la ve en Wakkpen y decide si la acepta.',
@@ -124,7 +141,10 @@ function exerciseRow(e: Args, sheetId: string, position: number, lang: string) {
     prompt: str(e.prompt) ?? '',
     answer_kind: e.answer_kind === 'text' ? 'text' : 'code',
     lang: LANGS.includes(e.lang as string) ? (e.lang as string) : lang,
-    allow_pen: typeof e.allow_pen === 'boolean' ? e.allow_pen : true,
+    allow_pen: typeof e.allow_pen === 'boolean' ? e.allow_pen : false,
+    base_html: str(e.base_html, 50000) ?? '',
+    base_css: str(e.base_css, 50000) ?? '',
+    show_preview: e.show_preview === true,
   }
 }
 
@@ -202,6 +222,9 @@ async function runTool(db: SupabaseClient, teacherId: string, name: string, a: A
       if (a.answer_kind === 'code' || a.answer_kind === 'text') patch.answer_kind = a.answer_kind
       if (LANGS.includes(a.lang as string)) patch.lang = a.lang
       if (typeof a.allow_pen === 'boolean') patch.allow_pen = a.allow_pen
+      if (typeof a.base_html === 'string') patch.base_html = str(a.base_html, 50000)
+      if (typeof a.base_css === 'string') patch.base_css = str(a.base_css, 50000)
+      if (typeof a.show_preview === 'boolean') patch.show_preview = a.show_preview
       if (Number.isInteger(a.position)) patch.position = a.position
       if (Object.keys(patch).length) {
         const { error } = await db.from('exercises').update(patch).eq('id', a.exercise_id)
@@ -222,19 +245,29 @@ async function runTool(db: SupabaseClient, teacherId: string, name: string, a: A
       return data ?? []
     }
     case 'get_submissions': {
-      let q = db.from('exercises').select('id, position, title').eq('sheet_id', a.sheet_id).order('position')
+      let q = db
+        .from('exercises')
+        .select('id, position, title, prompt, answer_kind, lang, base_html, base_css, exercise_solutions(solution)')
+        .eq('sheet_id', a.sheet_id)
+        .order('position')
       if (typeof a.exercise_id === 'string') q = q.eq('id', a.exercise_id)
       const { data: ex } = await q
       const ids = (ex ?? []).map((e: Args) => e.id as string)
       if (!ids.length) return []
       const { data: subs } = await db
         .from('submissions')
-        .select('id, exercise_id, answer, status, comment, submitted_at, pen_snapshot, profiles(nombre)')
+        .select('id, exercise_id, answer, status, comment, submitted_at, graded_by, pen_snapshot, profiles(nombre)')
         .in('exercise_id', ids)
-      return (ex ?? []).map((e: Args) => ({
+      return (ex ?? []).map((e: Args & { exercise_solutions: { solution: string } | null }) => ({
         exercise_id: e.id,
         number: (e.position as number) + 1,
         title: e.title,
+        prompt: e.prompt,
+        answer_kind: e.answer_kind,
+        lang: e.lang,
+        base_html: clip(e.base_html as string, 8000),
+        base_css: clip(e.base_css as string, 8000),
+        solution: e.exercise_solutions?.solution ?? '',
         submissions: (subs ?? [])
           .filter((s: Args) => s.exercise_id === e.id)
           .map((s: Args & { profiles: { nombre: string } | null; pen_snapshot: Args | null }) => ({
@@ -243,6 +276,7 @@ async function runTool(db: SupabaseClient, teacherId: string, name: string, a: A
             answer: clip(s.answer as string, 6000),
             status: s.status,
             teacher_comment: s.comment,
+            graded_by: s.graded_by,
             submitted_at: s.submitted_at,
             pen: s.pen_snapshot
               ? { title: s.pen_snapshot.title, html: clip(s.pen_snapshot.html as string), css: clip(s.pen_snapshot.css as string) }
@@ -257,6 +291,19 @@ async function runTool(db: SupabaseClient, teacherId: string, name: string, a: A
         .upsert({ submission_id: a.submission_id, status: a.status, comment: str(a.comment, 2000) ?? '', created_at: new Date().toISOString() })
       if (error) throw new Error(error.message)
       return { ok: true, note: 'Sugerencia guardada. El profesor decide si la aplica.' }
+    }
+    case 'grade_submission': {
+      if (a.status !== 'ok' && a.status !== 'review') throw new Error('status debe ser ok o review')
+      const { data, error } = await db
+        .from('submissions')
+        .update({ status: a.status, comment: str(a.comment, 2000) ?? '', graded_at: new Date().toISOString(), graded_by: 'claude' })
+        .eq('id', a.submission_id)
+        .select('id')
+        .maybeSingle()
+      if (error) throw new Error(error.message)
+      if (!data) throw new Error('Entrega no encontrada')
+      await db.from('grade_suggestions').delete().eq('submission_id', a.submission_id)
+      return { ok: true, note: 'Corregida. Queda marcada como corregida por Claude; el profesor puede cambiarla.' }
     }
   }
   throw new Error(`Herramienta desconocida: ${name}`)
@@ -308,10 +355,11 @@ Deno.serve(async (req) => {
             result: {
               protocolVersion: (params.protocolVersion as string) ?? '2025-06-18',
               capabilities: { tools: { listChanged: false } },
-              serverInfo: { name: 'wakkpen', version: '0.1.0' },
+              serverInfo: { name: 'wakkpen', version: '0.2.0' },
               instructions:
                 'Wakkpen es la herramienta de clase de frontend del profesor. Crea hojas de ejercicios breves (3–5 min) en español, con enunciados claros, ' +
-                'código entre `backticks` y una solución por ejercicio. Las hojas se crean en borrador. Para corregir, usa suggest_grade: el profesor confirma.',
+                'código entre `backticks` y una solución por ejercicio. Cada ejercicio lleva su propio HTML de base (base_html) cuando el alumno escribe CSS o JS. ' +
+                'Las hojas se crean en borrador. Para corregir: suggest_grade por defecto; grade_submission solo si el profesor pide expresamente que corrijas.',
             },
           }
         case 'ping':

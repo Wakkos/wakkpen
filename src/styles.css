@@ -378,6 +378,17 @@ a.btn { text-decoration: none; }
 
 .progress { display: block; height: 4px; border-radius: 2px; background: var(--bg-hover); overflow: hidden; }
 .progress span { display: block; height: 100%; background: var(--accent); transition: width .4s ease; }
+.ex-base { font-size: 13px; }
+.ex-base summary { cursor: pointer; color: var(--muted); margin-bottom: 8px; }
+.ex-base-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 8px; }
+.base-code { max-height: 220px; overflow: auto; border-radius: 8px; border: 1px dashed var(--line); opacity: .85; }
+.result-frame { height: 220px; border-radius: 8px; overflow: hidden; border: 1px solid var(--line); display: flex; animation: rise .25s ease-out; }
+.compare { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+.compare figure { margin: 0; }
+.compare figcaption { font-size: 11px; color: var(--muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: .05em; }
+.compare-frame { height: 180px; border-radius: 8px; overflow: hidden; border: 1px solid var(--line); display: flex; }
+.tag-claude { margin-left: 8px; background: rgba(163, 113, 247, .16); color: #b98cff; }
+.grade-cell.by-claude { outline: 2px dotted #b98cff; outline-offset: 2px; }
 .preview-banner { margin: 0 0 16px; padding: 8px 12px; border-radius: 8px; border: 1px dashed var(--accent); color: var(--accent); font-size: 13px; }
 .sheet-intro { color: var(--muted); margin-bottom: 18px; }
 .rich p { margin: 0 0 6px; }

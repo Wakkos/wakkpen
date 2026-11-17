@@ -3,7 +3,8 @@ import { Link, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import type { Pen, SaveState } from '../lib/types'
-import { STATUS_LABEL, type Exercise, type PenSnapshot, type Sheet, type Submission } from '../lib/exercises'
+import { STATUS_LABEL, hasBase, type Exercise, type PenSnapshot, type Sheet, type Submission } from '../lib/exercises'
+import { ResultPreview } from './SheetTeacher'
 import { Page } from '../components/Layout'
 import { RichText } from '../components/RichText'
 import { CodeEditor } from '../components/CodeEditor'
@@ -189,6 +190,24 @@ function ExerciseCard({ n, exercise, solution, sub, pens, preview, onSaved }: Ca
       </header>
       <RichText text={exercise.prompt} />
 
+      {hasBase(exercise) && (
+        <details className="ex-base" open={exercise.base_html.length + exercise.base_css.length < 600}>
+          <summary>Base</summary>
+          <div className="ex-base-grid">
+            {exercise.base_html.trim() && (
+              <div className="base-code">
+                <CodeEditor lang="html" value={exercise.base_html} readOnly />
+              </div>
+            )}
+            {exercise.base_css.trim() && (
+              <div className="base-code">
+                <CodeEditor lang="css" value={exercise.base_css} readOnly />
+              </div>
+            )}
+          </div>
+        </details>
+      )}
+
       {exercise.answer_kind === 'code' ? (
         <div className={`answer-code${locked ? ' is-locked' : ''}`}>
           <CodeEditor lang={exercise.lang} value={answer} readOnly={locked} onChange={setAnswer} />
@@ -218,6 +237,12 @@ function ExerciseCard({ n, exercise, solution, sub, pens, preview, onSaved }: Ca
         )}
       </div>
       {error && <p className="form-error">{error}</p>}
+
+      {exercise.answer_kind === 'code' && (exercise.show_preview || (sub && sub.status !== 'submitted')) && (
+        <div className="result-frame">
+          <ResultPreview exercise={exercise} code={exercise.show_preview ? answer : sub!.answer} />
+        </div>
+      )}
 
       {sub?.comment && sub.status !== 'submitted' && <p className="teacher-comment">{sub.comment}</p>}
       {solution !== undefined && solution !== '' && (

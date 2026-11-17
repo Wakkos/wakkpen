@@ -5,6 +5,8 @@ import type { Profile, SaveState } from '../lib/types'
 import {
   STATUS_LABEL,
   blankExercise,
+  composeResult,
+  solutionCode,
   parseExercises,
   saveSheet,
   type DraftExercise,
@@ -22,6 +24,8 @@ import { Preview } from '../components/Preview'
 import { timeAgo } from '../lib/export'
 
 const LANGS: ExLang[] = ['css', 'html', 'js']
+
+export type { Exercise }
 
 export function SheetTeacher() {
   const { id } = useParams<{ id: string }>()
@@ -323,10 +327,21 @@ function SheetEdit({ sheet, drafts, onSheet, onDraft, onDrafts, onRemove, onSave
                 </div>
               )}
               <label className="check">
+                <input type="checkbox" checked={d.show_preview} onChange={(e) => onDraft(d.key, { show_preview: e.target.checked })} />
+                Vista previa para el alumno
+              </label>
+              <label className="check">
                 <input type="checkbox" checked={d.allow_pen} onChange={(e) => onDraft(d.key, { allow_pen: e.target.checked })} />
                 Adjuntar pen
               </label>
             </div>
+            <details className="ex-base" open={!!(d.base_html || d.base_css)}>
+              <summary>Base del ejercicio{d.base_html || d.base_css ? '' : ' (vacía)'}</summary>
+              <div className="ex-base-grid">
+                <textarea className="input textarea mono" rows={5} value={d.base_html} placeholder="HTML de base" onChange={(e) => onDraft(d.key, { base_html: e.target.value })} />
+                <textarea className="input textarea mono" rows={5} value={d.base_css} placeholder="CSS de base (opcional)" onChange={(e) => onDraft(d.key, { base_css: e.target.value })} />
+              </div>
+            </details>
             <textarea className="input textarea solution" rows={2} value={d.solution} placeholder="Solución (oculta hasta que la publiques)" onChange={(e) => onDraft(d.key, { solution: e.target.value })} />
           </li>
         ))}
@@ -404,7 +419,7 @@ function GradeGrid({ exercises, students, subs, suggestions, onToggleSolution, o
                     <td key={ex.id}>
                       <button
                         key={s?.submitted_at ?? 'none'}
-                        className={`grade-cell st-${s?.status ?? 'none'}${s && s.status === 'submitted' && suggestions[s.id] ? ' has-suggestion' : ''}`}
+                        className={`grade-cell st-${s?.status ?? 'none'}${s?.graded_by === 'claude' ? ' by-claude' : ''}${s && s.status === 'submitted' && suggestions[s.id] ? ' has-suggestion' : ''}`}
                         onClick={() => s && setOpen({ ex: ei, st: si })}
                         disabled={!s}
                         title={`${st.nombre} · ${ex.title}: ${STATUS_LABEL[s?.status ?? 'none']}`}
@@ -464,7 +479,7 @@ function GradeDrawer({ exercise, index, student, sub, suggestion, onClose, onGra
     setBusy(null)
     if (error) return alert(error.message)
     if (suggestion) await supabase.from('grade_suggestions').delete().eq('submission_id', sub.id)
-    onGraded({ ...sub, status, comment: text, graded_at: new Date().toISOString() })
+    onGraded({ ...sub, status, comment: text, graded_at: new Date().toISOString(), graded_by: status === 'submitted' ? null : 'teacher' })
     if (status !== 'submitted') onNext()
   }
 
@@ -475,6 +490,7 @@ function GradeDrawer({ exercise, index, student, sub, suggestion, onClose, onGra
       <header className="drawer-header">
         <h2>
           {student.nombre} · {index + 1}. {exercise.title}
+          {sub.graded_by === 'claude' && <span className="tag tag-claude">Claude</span>}
         </h2>
         <button className="icon-btn" onClick={onClose} aria-label="Cerrar">
           ×
@@ -491,6 +507,24 @@ function GradeDrawer({ exercise, index, student, sub, suggestion, onClose, onGra
         )}
         <span className="answer-time">{timeAgo(sub.submitted_at)}</span>
       </div>
+      {exercise.answer_kind === 'code' && (
+        <div className="compare">
+          <figure>
+            <figcaption>Su resultado</figcaption>
+            <div className="compare-frame">
+              <ResultPreview exercise={exercise} code={sub.answer} />
+            </div>
+          </figure>
+          {exercise.solution && (
+            <figure>
+              <figcaption>Solución</figcaption>
+              <div className="compare-frame">
+                <ResultPreview exercise={exercise} code={solutionCode(exercise.solution)} />
+              </div>
+            </figure>
+          )}
+        </div>
+      )}
       {pen && (
         <div className="answer-pen">
           <Preview html={pen.html} css={pen.css} cssLang={pen.css_lang} js={pen.js} libs={pen.libs} bare delay={100} />
@@ -532,4 +566,9 @@ function GradeDrawer({ exercise, index, student, sub, suggestion, onClose, onGra
       </div>
     </div>
   )
+}
+
+export function ResultPreview({ exercise, code }: { exercise: Pick<Exercise, 'lang' | 'base_html' | 'base_css'>; code: string }) {
+  const r = composeResult(exercise, code)
+  return <Preview html={r.html} css={r.css} cssLang="css" js={r.js} bare delay={150} />
 }

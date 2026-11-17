@@ -25,6 +25,9 @@ export interface Exercise {
   lang: ExLang
   allow_pen: boolean
   solution_published: boolean
+  base_html: string
+  base_css: string
+  show_preview: boolean
 }
 
 export interface PenSnapshot {
@@ -47,6 +50,7 @@ export interface Submission {
   comment: string
   submitted_at: string
   graded_at: string | null
+  graded_by: 'teacher' | 'claude' | null
 }
 
 // Borrador de ejercicio en el editor del profe (antes de guardar).
@@ -60,13 +64,16 @@ export interface DraftExercise {
   allow_pen: boolean
   solution: string
   solution_published: boolean
+  base_html: string
+  base_css: string
+  show_preview: boolean
 }
 
 let seq = 0
 export const newKey = () => `k${Date.now().toString(36)}${seq++}`
 
 export function blankExercise(lang: ExLang): DraftExercise {
-  return { key: newKey(), title: '', prompt: '', answer_kind: 'code', lang, allow_pen: true, solution: '', solution_published: false }
+  return { key: newKey(), title: '', prompt: '', answer_kind: 'code', lang, allow_pen: false, solution: '', solution_published: false, base_html: '', base_css: '', show_preview: false }
 }
 
 // ---------- Importar texto ----------
@@ -156,6 +163,9 @@ export async function saveSheet(sheet: Sheet, drafts: DraftExercise[], removed: 
       lang: d.lang,
       allow_pen: d.allow_pen,
       solution_published: d.solution_published,
+      base_html: d.base_html,
+      base_css: d.base_css,
+      show_preview: d.show_preview,
     }
     const q = d.id
       ? supabase.from('exercises').update(row).eq('id', d.id).select('id').single()
@@ -176,3 +186,20 @@ export const STATUS_LABEL: Record<SubStatus | 'none', string> = {
   ok: 'Bien',
   review: 'Repasar',
 }
+
+// ---------- Resultado: base del ejercicio + lo que escribe el alumno ----------
+type WithBase = Pick<Exercise, 'lang' | 'base_html' | 'base_css'>
+
+export function composeResult(ex: WithBase, code: string): { html: string; css: string; js: string } {
+  if (ex.lang === 'html') return { html: code, css: ex.base_css, js: '' }
+  if (ex.lang === 'js') return { html: ex.base_html, css: ex.base_css, js: code }
+  return { html: ex.base_html, css: `${ex.base_css}\n${code}`, js: '' }
+}
+
+// De una solución con explicación ("`h1 { … }`: se hereda") se queda solo con el código.
+export function solutionCode(text: string): string {
+  const spans = [...text.matchAll(/```[a-z]*\n?([\s\S]*?)```|`([^`]+)`/g)].map((m) => (m[1] ?? m[2]).trim())
+  return spans.length ? spans.join('\n') : text
+}
+
+export const hasBase = (ex: WithBase) => !!(ex.base_html.trim() || ex.base_css.trim())
