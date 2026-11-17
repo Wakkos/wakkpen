@@ -6,7 +6,7 @@ import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2'
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, content-type, mcp-protocol-version, mcp-session-id, x-wakkpen-token',
+  'Access-Control-Allow-Headers': 'authorization, content-type, mcp-protocol-version, mcp-session-id, x-wakkpen-token, x-api-key',
   'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
 }
 
@@ -278,7 +278,8 @@ Deno.serve(async (req) => {
   // Token: último segmento de la ruta o cabecera Authorization.
   const url = new URL(req.url)
   const fromPath = url.pathname.split('/').filter(Boolean).pop() ?? ''
-  const fromHeader = req.headers.get('X-Wakkpen-Token') ?? (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '')
+  // Cualquier cabecera vale (X-API-Key, Authorization: Bearer, X-Wakkpen-Token…): se busca el valor que empiece por wkp_.
+  const fromHeader = [...req.headers.values()].map((h) => h.replace(/^Bearer\s+/i, '').trim()).find((h) => h.startsWith('wkp_')) ?? ''
   const token = fromPath.startsWith('wkp_') ? fromPath : fromHeader.startsWith('wkp_') ? fromHeader : ''
   if (!token) return json({ error: 'Falta el token' }, 401)
 
