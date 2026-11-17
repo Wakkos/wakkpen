@@ -5,14 +5,15 @@ import type { Profile, SaveState } from '../lib/types'
 import {
   STATUS_LABEL,
   blankExercise,
-  composeResult,
-  solutionCode,
+  compose,
+  hasCode,
+  solutionParts,
   parseExercises,
   saveSheet,
   type DraftExercise,
   type Exercise,
-  type ExLang,
   type Sheet,
+  type Solution,
   type SubStatus,
   type Submission,
 } from '../lib/exercises'
@@ -22,10 +23,7 @@ import { RichText } from '../components/RichText'
 import { CodeEditor } from '../components/CodeEditor'
 import { Preview } from '../components/Preview'
 import { timeAgo } from '../lib/export'
-
-const LANGS: ExLang[] = ['css', 'html', 'js']
-
-export type { Exercise }
+import { LockIcon } from './SheetStudent'
 
 export function SheetTeacher() {
   const { id } = useParams<{ id: string }>()
@@ -51,8 +49,16 @@ export function SheetTeacher() {
     const list = (ex as Exercise[]) ?? []
     const ids = list.map((e) => e.id)
     const { data: sols } = ids.length ? await supabase.from('exercise_solutions').select('*').in('exercise_id', ids) : { data: [] }
-    const solMap = Object.fromEntries(((sols as { exercise_id: string; solution: string }[]) ?? []).map((x) => [x.exercise_id, x.solution]))
-    setDrafts(list.map((e) => ({ ...e, key: e.id, solution: solMap[e.id] ?? '' })))
+    const solMap = Object.fromEntries(((sols as Solution[]) ?? []).map((x) => [x.exercise_id, x]))
+    setDrafts(
+      list.map((e) => ({
+        ...e,
+        key: e.id,
+        solution: solMap[e.id]?.solution ?? '',
+        solution_html: solMap[e.id]?.html ?? '',
+        solution_css: solMap[e.id]?.css ?? '',
+      })),
+    )
     if (ids.length) {
       const { data: sb } = await supabase.from('submissions').select('*').in('exercise_id', ids)
       const subList = (sb as Submission[]) ?? []
@@ -242,7 +248,7 @@ interface EditProps {
 function SheetEdit({ sheet, drafts, onSheet, onDraft, onDrafts, onRemove, onSave, saving, dirty }: EditProps) {
   const [importOpen, setImportOpen] = useState(drafts.length === 0)
   const [text, setText] = useState('')
-  const preview = useMemo(() => (text.trim() ? parseExercises(text, sheet.lang) : null), [text, sheet.lang])
+  const preview = useMemo(() => (text.trim() ? parseExercises(text) : null), [text])
 
   function applyImport() {
     if (!preview) return
@@ -265,13 +271,6 @@ function SheetEdit({ sheet, drafts, onSheet, onDraft, onDrafts, onRemove, onSave
     <div className="sheet-edit">
       <div className="sheet-meta">
         <textarea className="input textarea" rows={2} value={sheet.intro} placeholder="Introducción (opcional)" onChange={(e) => onSheet({ intro: e.target.value })} />
-        <div className="seg">
-          {LANGS.map((l) => (
-            <button key={l} className={sheet.lang === l ? 'is-on' : ''} onClick={() => onSheet({ lang: l })}>
-              {l.toUpperCase()}
-            </button>
-          ))}
-        </div>
       </div>
 
       <div className={`import${importOpen ? ' is-open' : ''}`}>
@@ -321,47 +320,74 @@ function SheetEdit({ sheet, drafts, onSheet, onDraft, onDrafts, onRemove, onSave
               </button>
             </div>
             <textarea className="input textarea" rows={3} value={d.prompt} placeholder="Enunciado. Usa `código` para el código." onChange={(e) => onDraft(d.key, { prompt: e.target.value })} />
+            <div className="ex-edit-code">
+              {(['html', 'css'] as const).map((lang) => {
+                const flag = lang === 'html' ? 'edit_html' : 'edit_css'
+                return (
+                  <div key={lang} className={`edit-pane${d[flag] ? '' : ' is-fixed'}`}>
+                    <div className="pane-label">
+                      {lang.toUpperCase()}
+                      <button
+                        className={`lock-toggle${d[flag] ? ' is-open' : ''}`}
+                        onClick={() => onDraft(d.key, { [flag]: !d[flag] })}
+                        title={d[flag] ? 'El alumno puede editarlo' : 'El alumno solo lo ve'}
+                      >
+                        {d[flag] ? 'Editable' : <><LockIcon /> Bloqueado</>}
+                      </button>
+                    </div>
+                    <div className="edit-editor">
+                      <CodeEditor lang={lang} value={d[lang]} onChange={(v) => onDraft(d.key, { [lang]: v })} />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
             <div className="ex-edit-opts">
-              <div className="seg">
-                <button className={d.answer_kind === 'code' ? 'is-on' : ''} onClick={() => onDraft(d.key, { answer_kind: 'code' })}>
-                  Código
-                </button>
-                <button className={d.answer_kind === 'text' ? 'is-on' : ''} onClick={() => onDraft(d.key, { answer_kind: 'text' })}>
-                  Texto
-                </button>
-              </div>
-              {d.answer_kind === 'code' && (
-                <div className="seg">
-                  {LANGS.map((l) => (
-                    <button key={l} className={d.lang === l ? 'is-on' : ''} onClick={() => onDraft(d.key, { lang: l })}>
-                      {l.toUpperCase()}
-                    </button>
-                  ))}
-                </div>
-              )}
+              <label className="check">
+                <input type="checkbox" checked={d.text_answer} onChange={(e) => onDraft(d.key, { text_answer: e.target.checked })} />
+                Respuesta escrita
+              </label>
               <label className="check">
                 <input type="checkbox" checked={d.show_preview} onChange={(e) => onDraft(d.key, { show_preview: e.target.checked })} />
                 Vista previa para el alumno
               </label>
-              <label className="check">
-                <input type="checkbox" checked={d.allow_pen} onChange={(e) => onDraft(d.key, { allow_pen: e.target.checked })} />
-                Adjuntar pen
-              </label>
             </div>
-            <details className="ex-base" open={!!(d.base_html || d.base_css)}>
-              <summary>Base del ejercicio{d.base_html || d.base_css ? '' : ' (vacía)'}</summary>
-              <div className="ex-base-grid">
-                <textarea className="input textarea mono" rows={5} value={d.base_html} placeholder="HTML de base" onChange={(e) => onDraft(d.key, { base_html: e.target.value })} />
-                <textarea className="input textarea mono" rows={5} value={d.base_css} placeholder="CSS de base (opcional)" onChange={(e) => onDraft(d.key, { base_css: e.target.value })} />
-              </div>
+            <details className="ex-sol" open={!!(d.solution || d.solution_html || d.solution_css)}>
+              <summary>Solución</summary>
+              {(d.edit_html || d.edit_css) && (
+                <div className="ex-edit-code">
+                  {d.edit_html && (
+                    <div className="edit-pane">
+                      <div className="pane-label">HTML</div>
+                      <div className="edit-editor">
+                        <CodeEditor lang="html" value={d.solution_html || d.html} onChange={(v) => onDraft(d.key, { solution_html: v })} />
+                      </div>
+                    </div>
+                  )}
+                  {d.edit_css && (
+                    <div className="edit-pane">
+                      <div className="pane-label">CSS</div>
+                      <div className="edit-editor">
+                        <CodeEditor lang="css" value={d.solution_css || d.css} onChange={(v) => onDraft(d.key, { solution_css: v })} />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+              <textarea
+                className="input textarea solution"
+                rows={2}
+                value={d.solution}
+                placeholder={d.text_answer ? 'Respuesta escrita esperada' : 'Explicación (opcional)'}
+                onChange={(e) => onDraft(d.key, { solution: e.target.value })}
+              />
             </details>
-            <textarea className="input textarea solution" rows={2} value={d.solution} placeholder="Solución (oculta hasta que la publiques)" onChange={(e) => onDraft(d.key, { solution: e.target.value })} />
           </li>
         ))}
       </ol>
 
       <div className="sheet-edit-foot">
-        <button className="btn btn-ghost" onClick={() => onDrafts([...drafts, blankExercise(sheet.lang)])}>
+        <button className="btn btn-ghost" onClick={() => onDrafts([...drafts, blankExercise()])}>
           + Ejercicio
         </button>
         <button className={`btn btn-primary${saving ? ' is-busy' : ''}`} onClick={onSave} disabled={saving || !dirty}>
@@ -496,8 +522,6 @@ function GradeDrawer({ exercise, index, student, sub, suggestion, onClose, onGra
     if (status !== 'submitted') onNext()
   }
 
-  const pen = sub.pen_snapshot
-
   return (
     <div className="drawer drawer-wide" role="dialog" aria-label="Corregir">
       <header className="drawer-header">
@@ -511,41 +535,42 @@ function GradeDrawer({ exercise, index, student, sub, suggestion, onClose, onGra
       </header>
       <RichText text={exercise.prompt} className="muted-rich" />
       <div className="answer-box">
-        {exercise.answer_kind === 'code' ? (
-          <div className="answer-code">
-            <CodeEditor lang={exercise.lang === 'js' ? 'js' : exercise.lang} value={sub.answer} readOnly />
+        {(exercise.edit_html || exercise.edit_css) && (
+          <div className="ex-edit-code">
+            {exercise.edit_html && (
+              <div className="answer-code">
+                <CodeEditor lang="html" value={sub.answer_html} readOnly />
+              </div>
+            )}
+            {exercise.edit_css && (
+              <div className="answer-code">
+                <CodeEditor lang="css" value={sub.answer_css} readOnly />
+              </div>
+            )}
           </div>
-        ) : (
-          <p className="answer-text">{sub.answer || <em className="muted">Sin texto</em>}</p>
         )}
+        {exercise.text_answer && <p className="answer-text">{sub.answer || <em className="muted">Sin texto</em>}</p>}
         <span className="answer-time">{timeAgo(sub.submitted_at)}</span>
       </div>
-      {exercise.answer_kind === 'code' && (
+      {hasCode(exercise) && (
         <div className="compare">
           <figure>
             <figcaption>Su resultado</figcaption>
             <div className="compare-frame">
-              <ResultPreview exercise={exercise} code={sub.answer} />
+              <ResultPreview {...compose(exercise, sub.answer_html, sub.answer_css)} />
             </div>
           </figure>
-          {exercise.solution && (
-            <figure>
-              <figcaption>Solución</figcaption>
-              <div className="compare-frame">
-                <ResultPreview exercise={exercise} code={solutionCode(exercise.solution)} />
-              </div>
-            </figure>
-          )}
-        </div>
-      )}
-      {pen && (
-        <div className="answer-pen">
-          <Preview html={pen.html} css={pen.css} cssLang={pen.css_lang} js={pen.js} libs={pen.libs} bare delay={100} />
+          <figure>
+            <figcaption>Solución</figcaption>
+            <div className="compare-frame">
+              <ResultPreview {...solutionParts(exercise, { html: exercise.solution_html, css: exercise.solution_css })} />
+            </div>
+          </figure>
         </div>
       )}
       {exercise.solution && (
-        <details className="solution-peek">
-          <summary>Solución</summary>
+        <details className="solution-peek" open={exercise.text_answer}>
+          <summary>{exercise.text_answer ? 'Respuesta esperada' : 'Explicación'}</summary>
           <RichText text={exercise.solution} />
         </details>
       )}
@@ -581,7 +606,6 @@ function GradeDrawer({ exercise, index, student, sub, suggestion, onClose, onGra
   )
 }
 
-export function ResultPreview({ exercise, code }: { exercise: Pick<Exercise, 'lang' | 'base_html' | 'base_css'>; code: string }) {
-  const r = composeResult(exercise, code)
-  return <Preview html={r.html} css={r.css} cssLang="css" js={r.js} bare delay={150} />
+export function ResultPreview({ html, css }: { html: string; css: string }) {
+  return <Preview html={html} css={css} cssLang="css" js="" bare delay={150} />
 }

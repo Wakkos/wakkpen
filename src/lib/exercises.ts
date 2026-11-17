@@ -1,51 +1,46 @@
 import { supabase } from './supabase'
-import type { CssLang } from './types'
 
-export type ExLang = 'html' | 'css' | 'js'
-export type AnswerKind = 'code' | 'text'
 export type SubStatus = 'submitted' | 'ok' | 'review'
 
 export interface Sheet {
   id: string
   title: string
   intro: string
-  lang: ExLang
   published: boolean
   created_at: string
   updated_at: string
 }
 
+// Cada ejercicio es un pen pequeño: su HTML y su CSS. El profe decide qué partes puede editar el alumno.
 export interface Exercise {
   id: string
   sheet_id: string
   position: number
   title: string
   prompt: string
-  answer_kind: AnswerKind
-  lang: ExLang
-  allow_pen: boolean
-  solution_published: boolean
-  base_html: string
-  base_css: string
-  show_preview: boolean
-}
-
-export interface PenSnapshot {
-  pen_id: string
-  title: string
   html: string
   css: string
-  css_lang: CssLang
-  js: string
-  libs: string[]
+  edit_html: boolean
+  edit_css: boolean
+  text_answer: boolean
+  show_preview: boolean
+  solution_published: boolean
+}
+
+export interface Solution {
+  exercise_id: string
+  html: string
+  css: string
+  solution: string // nota o explicación
 }
 
 export interface Submission {
   id: string
   exercise_id: string
   user_id: string
-  answer: string
-  pen_snapshot: PenSnapshot | null
+  answer: string // respuesta escrita
+  answer_html: string
+  answer_css: string
   status: SubStatus
   comment: string
   submitted_at: string
@@ -54,26 +49,33 @@ export interface Submission {
 }
 
 // Borrador de ejercicio en el editor del profe (antes de guardar).
-export interface DraftExercise {
+export interface DraftExercise extends Omit<Exercise, 'id' | 'sheet_id' | 'position'> {
   id?: string
   key: string
-  title: string
-  prompt: string
-  answer_kind: AnswerKind
-  lang: ExLang
-  allow_pen: boolean
   solution: string
-  solution_published: boolean
-  base_html: string
-  base_css: string
-  show_preview: boolean
+  solution_html: string
+  solution_css: string
 }
 
 let seq = 0
 export const newKey = () => `k${Date.now().toString(36)}${seq++}`
 
-export function blankExercise(lang: ExLang): DraftExercise {
-  return { key: newKey(), title: '', prompt: '', answer_kind: 'code', lang, allow_pen: false, solution: '', solution_published: false, base_html: '', base_css: '', show_preview: false }
+export function blankExercise(): DraftExercise {
+  return {
+    key: newKey(),
+    title: '',
+    prompt: '',
+    html: '',
+    css: '',
+    edit_html: false,
+    edit_css: true,
+    text_answer: false,
+    show_preview: false,
+    solution_published: false,
+    solution: '',
+    solution_html: '',
+    solution_css: '',
+  }
 }
 
 // ---------- Importar texto ----------
@@ -87,7 +89,7 @@ export function blankExercise(lang: ExLang): DraftExercise {
 const HEADER = /^\s*(\d{1,2})\s*[·.)\-–:]\s*(.+)$/
 const EXTRA = /^\s*(extra[^:]*):\s*(.*)$/i
 
-export function parseExercises(text: string, lang: ExLang): { intro: string; exercises: DraftExercise[]; ignored: string } {
+export function parseExercises(text: string): { intro: string; exercises: DraftExercise[]; ignored: string } {
   const lines = text.replace(/\r/g, '').split('\n')
   const intro: string[] = []
   const blocks: { title: string; body: string[] }[] = []
@@ -116,12 +118,18 @@ export function parseExercises(text: string, lang: ExLang): { intro: string; exe
       prompt = b.slice(0, -1).join('\n')
     }
     const isText = /[¿?]/.test(title + prompt) && !/[{}]/.test(solution)
+    const code = solutionCode(solution)
+    const isHtml = /<[a-z!]/i.test(code) && !/[{}]/.test(code)
     return {
-      ...blankExercise(lang),
+      ...blankExercise(),
       title,
       prompt,
-      solution,
-      answer_kind: (isText ? 'text' : 'code') as AnswerKind,
+      solution: isText ? solution : code === solution ? '' : solution,
+      text_answer: isText,
+      edit_css: !isText && !isHtml,
+      edit_html: !isText && isHtml,
+      solution_css: !isText && !isHtml ? code : '',
+      solution_html: !isText && isHtml ? code : '',
     }
   })
 
@@ -135,7 +143,7 @@ export function richText(text: string): string {
   return text
     .split(/\n{1,}/)
     .filter((p) => p.trim())
-    .map((p) => `<p>${escapeHtml(p).replace(/`([^`]+)`/g, '<code>$1</code>')}</p>`)
+    .map((p) => `<p>${escapeHtml(p).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')}</p>`)
     .join('')
 }
 
@@ -143,7 +151,7 @@ export function richText(text: string): string {
 export async function saveSheet(sheet: Sheet, drafts: DraftExercise[], removed: string[]): Promise<DraftExercise[]> {
   const { error: sErr } = await supabase
     .from('exercise_sheets')
-    .update({ title: sheet.title, intro: sheet.intro, lang: sheet.lang, published: sheet.published })
+    .update({ title: sheet.title, intro: sheet.intro, published: sheet.published })
     .eq('id', sheet.id)
   if (sErr) throw sErr
 
@@ -159,13 +167,13 @@ export async function saveSheet(sheet: Sheet, drafts: DraftExercise[], removed: 
       position: i,
       title: d.title,
       prompt: d.prompt,
-      answer_kind: d.answer_kind,
-      lang: d.lang,
-      allow_pen: d.allow_pen,
-      solution_published: d.solution_published,
-      base_html: d.base_html,
-      base_css: d.base_css,
+      html: d.html,
+      css: d.css,
+      edit_html: d.edit_html,
+      edit_css: d.edit_css,
+      text_answer: d.text_answer,
       show_preview: d.show_preview,
+      solution_published: d.solution_published,
     }
     const q = d.id
       ? supabase.from('exercises').update(row).eq('id', d.id).select('id').single()
@@ -173,7 +181,7 @@ export async function saveSheet(sheet: Sheet, drafts: DraftExercise[], removed: 
     const { data, error } = await q
     if (error) throw error
     const id = (data as { id: string }).id
-    const { error: solErr } = await supabase.from('exercise_solutions').upsert({ exercise_id: id, solution: d.solution })
+    const { error: solErr } = await supabase.from('exercise_solutions').upsert({ exercise_id: id, solution: d.solution, html: d.solution_html, css: d.solution_css })
     if (solErr) throw solErr
     saved.push({ ...d, id })
   }
@@ -187,19 +195,26 @@ export const STATUS_LABEL: Record<SubStatus | 'none', string> = {
   review: 'Repasar',
 }
 
-// ---------- Resultado: base del ejercicio + lo que escribe el alumno ----------
-type WithBase = Pick<Exercise, 'lang' | 'base_html' | 'base_css'>
+// ---------- Resultado ----------
+// La parte bloqueada es siempre la del ejercicio; la editable, la del alumno (o la de la solución).
+type Parts = Pick<Exercise, 'html' | 'css' | 'edit_html' | 'edit_css'>
 
-export function composeResult(ex: WithBase, code: string): { html: string; css: string; js: string } {
-  if (ex.lang === 'html') return { html: code, css: ex.base_css, js: '' }
-  if (ex.lang === 'js') return { html: ex.base_html, css: ex.base_css, js: code }
-  return { html: ex.base_html, css: `${ex.base_css}\n${code}`, js: '' }
+export function compose(ex: Parts, html: string, css: string): { html: string; css: string } {
+  return { html: ex.edit_html ? html : ex.html, css: ex.edit_css ? css : ex.css }
 }
+
+// Una solución vacía en una parte editable equivale al punto de partida del ejercicio.
+export const solutionParts = (ex: Parts, sol: { html: string; css: string }) => compose(ex, sol.html || ex.html, sol.css || ex.css)
+
+// Lo que el alumno tiene en los editores al empezar o tras entregar.
+export function startParts(ex: Parts, sub?: Pick<Submission, 'answer_html' | 'answer_css'>) {
+  return { html: ex.edit_html && sub ? sub.answer_html : ex.html, css: ex.edit_css && sub ? sub.answer_css : ex.css }
+}
+
+export const hasCode = (ex: Parts) => ex.edit_html || ex.edit_css || !!ex.html.trim() || !!ex.css.trim()
 
 // De una solución con explicación ("`h1 { … }`: se hereda") se queda solo con el código.
 export function solutionCode(text: string): string {
   const spans = [...text.matchAll(/```[a-z]*\n?([\s\S]*?)```|`([^`]+)`/g)].map((m) => (m[1] ?? m[2]).trim())
   return spans.length ? spans.join('\n') : text
 }
-
-export const hasBase = (ex: WithBase) => !!(ex.base_html.trim() || ex.base_css.trim())

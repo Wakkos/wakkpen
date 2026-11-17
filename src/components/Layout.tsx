@@ -101,11 +101,11 @@ export function TopBar({ children }: { children?: ReactNode }) {
   )
 }
 
-export function Page({ children, bar }: { children: ReactNode; bar?: ReactNode }) {
+export function Page({ children, bar, wide }: { children: ReactNode; bar?: ReactNode; wide?: boolean }) {
   return (
     <div className="app">
       <TopBar>{bar}</TopBar>
-      <main className="page">{children}</main>
+      <main className={`page${wide ? ' page-wide' : ''}`}>{children}</main>
     </div>
   )
 }

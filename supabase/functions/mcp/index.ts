@@ -10,19 +10,21 @@ const cors = {
   'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
 }
 
-const LANGS = ['html', 'css', 'js']
+// Cada ejercicio es un pen pequeño: HTML y CSS propios; el profe decide qué partes edita el alumno. Sin JavaScript.
 const exerciseSchema = {
   type: 'object',
   properties: {
     title: { type: 'string', description: 'Título corto del ejercicio' },
     prompt: { type: 'string', description: 'Enunciado para el alumno. Usa `backticks` para el código.' },
-    answer_kind: { type: 'string', enum: ['code', 'text'], description: 'code: el alumno escribe código; text: responde con texto (predicciones, explicaciones)' },
-    lang: { type: 'string', enum: LANGS, description: 'Lenguaje del cuadro de código (si answer_kind es code)' },
-    allow_pen: { type: 'boolean', description: 'Si el alumno puede adjuntar una copia de su pen' },
-    solution: { type: 'string', description: 'Solución: solo el código que escribiría el alumno. Queda oculta hasta que el profesor la publique.' },
-    base_html: { type: 'string', description: 'HTML de base sobre el que trabaja el alumno (lo ve en solo lectura). Imprescindible si el alumno escribe CSS o JS.' },
-    base_css: { type: 'string', description: 'CSS de base opcional (por ejemplo si el alumno escribe HTML).' },
-    show_preview: { type: 'boolean', description: 'Si el alumno ve la vista previa mientras escribe. Por defecto no: la ve al ser corregido.' },
+    html: { type: 'string', description: 'HTML del ejercicio: un trocito pequeño, solo lo que el ejercicio necesita. Es el punto de partida si edit_html es true.' },
+    css: { type: 'string', description: 'CSS del ejercicio (punto de partida si edit_css es true; puede ir vacío).' },
+    edit_html: { type: 'boolean', description: 'El alumno puede editar el HTML. Por defecto false (lo ve en solo lectura).' },
+    edit_css: { type: 'boolean', description: 'El alumno puede editar el CSS. Por defecto true.' },
+    text_answer: { type: 'boolean', description: 'Añade un cuadro de respuesta escrita (predicciones, explicaciones). Por defecto false.' },
+    show_preview: { type: 'boolean', description: 'El alumno ve el resultado mientras escribe. Por defecto false: lo ve al ser corregido.' },
+    solution_html: { type: 'string', description: 'Solución: el HTML completo resuelto (solo si edit_html).' },
+    solution_css: { type: 'string', description: 'Solución: el CSS completo resuelto (solo si edit_css).' },
+    solution: { type: 'string', description: 'Explicación breve de la solución, o la respuesta escrita esperada si text_answer.' },
   },
   required: ['title', 'prompt'],
 }
@@ -46,7 +48,6 @@ const TOOLS = [
       properties: {
         title: { type: 'string' },
         intro: { type: 'string', description: 'Introducción opcional para los alumnos' },
-        lang: { type: 'string', enum: LANGS, description: 'Lenguaje por defecto de la hoja' },
         exercises: { type: 'array', items: exerciseSchema },
       },
       required: ['title', 'exercises'],
@@ -54,10 +55,10 @@ const TOOLS = [
   },
   {
     name: 'update_sheet',
-    description: 'Cambia el título, la introducción o el lenguaje por defecto de una hoja. No publica.',
+    description: 'Cambia el título o la introducción de una hoja. No publica.',
     inputSchema: {
       type: 'object',
-      properties: { sheet_id: { type: 'string' }, title: { type: 'string' }, intro: { type: 'string' }, lang: { type: 'string', enum: LANGS } },
+      properties: { sheet_id: { type: 'string' }, title: { type: 'string' }, intro: { type: 'string' } },
       required: ['sheet_id'],
     },
   },
@@ -72,7 +73,7 @@ const TOOLS = [
   },
   {
     name: 'update_exercise',
-    description: 'Edita un ejercicio (título, enunciado, tipo, lenguaje, adjuntar pen, solución o posición).',
+    description: 'Edita un ejercicio: cualquier campo, la solución o la posición.',
     inputSchema: {
       type: 'object',
       properties: { exercise_id: { type: 'string' }, ...exerciseSchema.properties, position: { type: 'integer' } },
@@ -92,7 +93,7 @@ const TOOLS = [
   {
     name: 'get_submissions',
     description:
-      'Devuelve las entregas de una hoja (o de un ejercicio): respuesta de cada alumno, estado (submitted/ok/review), comentario del profesor y, si adjuntó su pen, su HTML/CSS (recortado).',
+      'Devuelve, por ejercicio, su HTML/CSS, qué partes edita el alumno y la solución; y las entregas: HTML/CSS del alumno en las partes editables, respuesta escrita, estado (submitted/ok/review) y comentario.',
     inputSchema: {
       type: 'object',
       properties: { sheet_id: { type: 'string' }, exercise_id: { type: 'string', description: 'Opcional: solo este ejercicio' } },
@@ -102,7 +103,7 @@ const TOOLS = [
   {
     name: 'grade_submission',
     description:
-      'Corrige una entrega de verdad (ok o review) con un comentario breve para el alumno. Úsala SOLO cuando el profesor pida expresamente que corrijas; si no, usa suggest_grade. Compara la respuesta con la base y la solución que da get_submissions. Queda marcada como corregida por Claude.',
+      'Corrige una entrega de verdad (ok o review) con un comentario breve para el alumno. Úsala SOLO cuando el profesor pida expresamente que corrijas; si no, usa suggest_grade. Compara su HTML/CSS y su respuesta escrita con la solución que da get_submissions. Queda marcada como corregida por Claude.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -130,30 +131,40 @@ const TOOLS = [
 ]
 
 type Args = Record<string, unknown>
+type Sol = { solution: string; html: string; css: string }
 const str = (v: unknown, max = 5000) => (typeof v === 'string' ? v.slice(0, max) : undefined)
 const clip = (v: string | null | undefined, max = 4000) => (v && v.length > max ? v.slice(0, max) + '\n…(recortado)' : v ?? '')
 
-function exerciseRow(e: Args, sheetId: string, position: number, lang: string) {
+const big = (v: unknown) => str(v, 50000)
+
+function exerciseRow(e: Args, sheetId: string, position: number) {
   return {
     sheet_id: sheetId,
     position,
     title: str(e.title, 200) ?? '',
     prompt: str(e.prompt) ?? '',
-    answer_kind: e.answer_kind === 'text' ? 'text' : 'code',
-    lang: LANGS.includes(e.lang as string) ? (e.lang as string) : lang,
-    allow_pen: typeof e.allow_pen === 'boolean' ? e.allow_pen : false,
-    base_html: str(e.base_html, 50000) ?? '',
-    base_css: str(e.base_css, 50000) ?? '',
+    html: big(e.html) ?? '',
+    css: big(e.css) ?? '',
+    edit_html: e.edit_html === true,
+    edit_css: e.edit_css !== false,
+    text_answer: e.text_answer === true,
     show_preview: e.show_preview === true,
   }
 }
 
-async function insertExercises(db: SupabaseClient, sheetId: string, list: Args[], start: number, lang: string) {
+const solutionRow = (id: string, e: Args) => ({
+  exercise_id: id,
+  solution: str(e.solution) ?? '',
+  html: big(e.solution_html) ?? '',
+  css: big(e.solution_css) ?? '',
+})
+
+async function insertExercises(db: SupabaseClient, sheetId: string, list: Args[], start: number) {
   const created = []
   for (const [i, e] of list.entries()) {
-    const { data, error } = await db.from('exercises').insert(exerciseRow(e, sheetId, start + i, lang)).select('id, title').single()
+    const { data, error } = await db.from('exercises').insert(exerciseRow(e, sheetId, start + i)).select('id, title').single()
     if (error) throw new Error(error.message)
-    await db.from('exercise_solutions').upsert({ exercise_id: data.id, solution: str(e.solution) ?? '' })
+    await db.from('exercise_solutions').upsert(solutionRow(data.id, e))
     created.push(data)
   }
   return created
@@ -164,14 +175,13 @@ async function runTool(db: SupabaseClient, teacherId: string, name: string, a: A
     case 'list_sheets': {
       const { data, error } = await db
         .from('exercise_sheets')
-        .select('id, title, published, lang, updated_at, exercises(id, submissions(count))')
+        .select('id, title, published, updated_at, exercises(id, submissions(count))')
         .order('created_at', { ascending: false })
       if (error) throw new Error(error.message)
       return (data ?? []).map((s: Args & { exercises: { submissions: { count: number }[] }[] }) => ({
         id: s.id,
         title: s.title,
         published: s.published,
-        lang: s.lang,
         exercises: s.exercises.length,
         submissions: s.exercises.reduce((n, e) => n + (e.submissions?.[0]?.count ?? 0), 0),
         updated_at: s.updated_at,
@@ -180,57 +190,58 @@ async function runTool(db: SupabaseClient, teacherId: string, name: string, a: A
     case 'get_sheet': {
       const { data: s, error } = await db.from('exercise_sheets').select('*').eq('id', a.sheet_id).maybeSingle()
       if (error || !s) throw new Error('Hoja no encontrada')
-      const { data: ex } = await db.from('exercises').select('*, exercise_solutions(solution)').eq('sheet_id', s.id).order('position')
+      const { data: ex } = await db.from('exercises').select('*, exercise_solutions(solution, html, css)').eq('sheet_id', s.id).order('position')
       return {
         ...s,
-        exercises: (ex ?? []).map((e: Args & { exercise_solutions: { solution: string } | null }) => {
-          const { exercise_solutions, ...rest } = e
-          return { ...rest, solution: exercise_solutions?.solution ?? '' }
+        exercises: (ex ?? []).map((e: Args & { exercise_solutions: Sol | null }) => {
+          const { exercise_solutions: sol, ...rest } = e
+          return { ...rest, solution: sol?.solution ?? '', solution_html: sol?.html ?? '', solution_css: sol?.css ?? '' }
         }),
       }
     }
     case 'create_sheet': {
-      const lang = LANGS.includes(a.lang as string) ? (a.lang as string) : 'css'
       const { data: s, error } = await db
         .from('exercise_sheets')
-        .insert({ title: str(a.title, 160) || 'Nueva hoja', intro: str(a.intro) ?? '', lang, published: false, created_by: teacherId })
+        .insert({ title: str(a.title, 160) || 'Nueva hoja', intro: str(a.intro) ?? '', published: false, created_by: teacherId })
         .select('id, title')
         .single()
       if (error) throw new Error(error.message)
-      const created = await insertExercises(db, s.id, (a.exercises as Args[]) ?? [], 0, lang)
+      const created = await insertExercises(db, s.id, (a.exercises as Args[]) ?? [], 0)
       return { sheet: s, exercises: created, note: 'Creada en borrador. El profesor la revisa y la publica desde Wakkpen.' }
     }
     case 'update_sheet': {
       const patch: Args = {}
       if (str(a.title, 160)) patch.title = str(a.title, 160)
       if (typeof a.intro === 'string') patch.intro = str(a.intro)
-      if (LANGS.includes(a.lang as string)) patch.lang = a.lang
-      const { data, error } = await db.from('exercise_sheets').update(patch).eq('id', a.sheet_id).select('id, title, intro, lang').single()
+      const { data, error } = await db.from('exercise_sheets').update(patch).eq('id', a.sheet_id).select('id, title, intro').single()
       if (error) throw new Error(error.message)
       return data
     }
     case 'add_exercises': {
-      const { data: s } = await db.from('exercise_sheets').select('id, lang').eq('id', a.sheet_id).maybeSingle()
+      const { data: s } = await db.from('exercise_sheets').select('id').eq('id', a.sheet_id).maybeSingle()
       if (!s) throw new Error('Hoja no encontrada')
       const { count } = await db.from('exercises').select('id', { count: 'exact', head: true }).eq('sheet_id', s.id)
-      return { exercises: await insertExercises(db, s.id, (a.exercises as Args[]) ?? [], count ?? 0, s.lang) }
+      return { exercises: await insertExercises(db, s.id, (a.exercises as Args[]) ?? [], count ?? 0) }
     }
     case 'update_exercise': {
       const patch: Args = {}
       if (typeof a.title === 'string') patch.title = str(a.title, 200)
       if (typeof a.prompt === 'string') patch.prompt = str(a.prompt)
-      if (a.answer_kind === 'code' || a.answer_kind === 'text') patch.answer_kind = a.answer_kind
-      if (LANGS.includes(a.lang as string)) patch.lang = a.lang
-      if (typeof a.allow_pen === 'boolean') patch.allow_pen = a.allow_pen
-      if (typeof a.base_html === 'string') patch.base_html = str(a.base_html, 50000)
-      if (typeof a.base_css === 'string') patch.base_css = str(a.base_css, 50000)
-      if (typeof a.show_preview === 'boolean') patch.show_preview = a.show_preview
+      for (const k of ['html', 'css']) if (typeof a[k] === 'string') patch[k] = big(a[k])
+      for (const k of ['edit_html', 'edit_css', 'text_answer', 'show_preview']) if (typeof a[k] === 'boolean') patch[k] = a[k]
       if (Number.isInteger(a.position)) patch.position = a.position
       if (Object.keys(patch).length) {
         const { error } = await db.from('exercises').update(patch).eq('id', a.exercise_id)
         if (error) throw new Error(error.message)
       }
-      if (typeof a.solution === 'string') await db.from('exercise_solutions').upsert({ exercise_id: a.exercise_id, solution: str(a.solution) })
+      const sol: Args = {}
+      if (typeof a.solution === 'string') sol.solution = str(a.solution)
+      if (typeof a.solution_html === 'string') sol.html = big(a.solution_html)
+      if (typeof a.solution_css === 'string') sol.css = big(a.solution_css)
+      if (Object.keys(sol).length) {
+        const { error } = await db.from('exercise_solutions').upsert({ exercise_id: a.exercise_id, ...sol })
+        if (error) throw new Error(error.message)
+      }
       return { ok: true }
     }
     case 'delete_exercise': {
@@ -247,7 +258,7 @@ async function runTool(db: SupabaseClient, teacherId: string, name: string, a: A
     case 'get_submissions': {
       let q = db
         .from('exercises')
-        .select('id, position, title, prompt, answer_kind, lang, base_html, base_css, exercise_solutions(solution)')
+        .select('id, position, title, prompt, html, css, edit_html, edit_css, text_answer, exercise_solutions(solution, html, css)')
         .eq('sheet_id', a.sheet_id)
         .order('position')
       if (typeof a.exercise_id === 'string') q = q.eq('id', a.exercise_id)
@@ -256,33 +267,38 @@ async function runTool(db: SupabaseClient, teacherId: string, name: string, a: A
       if (!ids.length) return []
       const { data: subs } = await db
         .from('submissions')
-        .select('id, exercise_id, answer, status, comment, submitted_at, graded_by, pen_snapshot, profiles(nombre)')
+        .select('id, exercise_id, answer, answer_html, answer_css, status, comment, submitted_at, graded_by, profiles(nombre)')
         .in('exercise_id', ids)
-      return (ex ?? []).map((e: Args & { exercise_solutions: { solution: string } | null }) => ({
-        exercise_id: e.id,
-        number: (e.position as number) + 1,
-        title: e.title,
-        prompt: e.prompt,
-        answer_kind: e.answer_kind,
-        lang: e.lang,
-        base_html: clip(e.base_html as string, 8000),
-        base_css: clip(e.base_css as string, 8000),
-        solution: e.exercise_solutions?.solution ?? '',
-        submissions: (subs ?? [])
-          .filter((s: Args) => s.exercise_id === e.id)
-          .map((s: Args & { profiles: { nombre: string } | null; pen_snapshot: Args | null }) => ({
-            submission_id: s.id,
-            student: s.profiles?.nombre,
-            answer: clip(s.answer as string, 6000),
-            status: s.status,
-            teacher_comment: s.comment,
-            graded_by: s.graded_by,
-            submitted_at: s.submitted_at,
-            pen: s.pen_snapshot
-              ? { title: s.pen_snapshot.title, html: clip(s.pen_snapshot.html as string), css: clip(s.pen_snapshot.css as string) }
-              : null,
-          })),
-      }))
+      return (ex ?? []).map((e: Args & { exercise_solutions: Sol | null }) => {
+        const sol = e.exercise_solutions
+        return {
+          exercise_id: e.id,
+          number: (e.position as number) + 1,
+          title: e.title,
+          prompt: e.prompt,
+          html: clip(e.html as string, 8000),
+          css: clip(e.css as string, 8000),
+          edit_html: e.edit_html,
+          edit_css: e.edit_css,
+          text_answer: e.text_answer,
+          solution_html: e.edit_html ? clip(sol?.html || (e.html as string), 8000) : undefined,
+          solution_css: e.edit_css ? clip(sol?.css || (e.css as string), 8000) : undefined,
+          solution: sol?.solution ?? '',
+          submissions: (subs ?? [])
+            .filter((s: Args) => s.exercise_id === e.id)
+            .map((s: Args & { profiles: { nombre: string } | null }) => ({
+              submission_id: s.id,
+              student: s.profiles?.nombre,
+              answer_html: e.edit_html ? clip(s.answer_html as string, 8000) : undefined,
+              answer_css: e.edit_css ? clip(s.answer_css as string, 8000) : undefined,
+              written_answer: e.text_answer ? clip(s.answer as string, 6000) : undefined,
+              status: s.status,
+              teacher_comment: s.comment,
+              graded_by: s.graded_by,
+              submitted_at: s.submitted_at,
+            })),
+        }
+      })
     }
     case 'suggest_grade': {
       if (a.status !== 'ok' && a.status !== 'review') throw new Error('status debe ser ok o review')
@@ -355,10 +371,11 @@ Deno.serve(async (req) => {
             result: {
               protocolVersion: (params.protocolVersion as string) ?? '2025-06-18',
               capabilities: { tools: { listChanged: false } },
-              serverInfo: { name: 'wakkpen', version: '0.2.0' },
+              serverInfo: { name: 'wakkpen', version: '0.3.0' },
               instructions:
                 'Wakkpen es la herramienta de clase de frontend del profesor. Crea hojas de ejercicios breves (3–5 min) en español, con enunciados claros, ' +
-                'código entre `backticks` y una solución por ejercicio. Cada ejercicio lleva su propio HTML de base (base_html) cuando el alumno escribe CSS o JS. ' +
+                'código entre `backticks` y una solución por ejercicio. Cada ejercicio es un pen pequeño con su propio HTML y CSS (trocitos cortos, solo lo necesario); ' +
+                'edit_html / edit_css dicen qué parte puede tocar el alumno, y la solución es el HTML/CSS completo de esa parte. Sin JavaScript. ' +
                 'Las hojas se crean en borrador. Para corregir: suggest_grade por defecto; grade_submission solo si el profesor pide expresamente que corrijas.',
             },
           }
