@@ -139,11 +139,21 @@ export function parseExercises(text: string): { intro: string; exercises: DraftE
 // ---------- Texto con `código` ----------
 const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
+// Admite `código`, **negrita** y bloques ```css … ``` como en Markdown.
+const inline = (p: string) => escapeHtml(p).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+
 export function richText(text: string): string {
   return text
-    .split(/\n{1,}/)
-    .filter((p) => p.trim())
-    .map((p) => `<p>${escapeHtml(p).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')}</p>`)
+    .split(/```[a-z]*\n?([\s\S]*?)```/)
+    .map((part, i) =>
+      i % 2
+        ? `<pre><code>${escapeHtml(part.replace(/\n$/, ''))}</code></pre>`
+        : part
+            .split(/\n{1,}/)
+            .filter((p) => p.trim())
+            .map((p) => `<p>${inline(p)}</p>`)
+            .join(''),
+    )
     .join('')
 }
 

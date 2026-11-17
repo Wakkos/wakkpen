@@ -136,6 +136,8 @@ const str = (v: unknown, max = 5000) => (typeof v === 'string' ? v.slice(0, max)
 const clip = (v: string | null | undefined, max = 4000) => (v && v.length > max ? v.slice(0, max) + '\n…(recortado)' : v ?? '')
 
 const big = (v: unknown) => str(v, 50000)
+// Algunos clientes mandan los booleanos como texto ("true").
+const bool = (v: unknown) => (v === true || v === 'true' ? true : v === false || v === 'false' ? false : undefined)
 
 function exerciseRow(e: Args, sheetId: string, position: number) {
   return {
@@ -145,10 +147,10 @@ function exerciseRow(e: Args, sheetId: string, position: number) {
     prompt: str(e.prompt) ?? '',
     html: big(e.html) ?? '',
     css: big(e.css) ?? '',
-    edit_html: e.edit_html === true,
-    edit_css: e.edit_css !== false,
-    text_answer: e.text_answer === true,
-    show_preview: e.show_preview === true,
+    edit_html: bool(e.edit_html) ?? false,
+    edit_css: bool(e.edit_css) ?? true,
+    text_answer: bool(e.text_answer) ?? false,
+    show_preview: bool(e.show_preview) ?? false,
   }
 }
 
@@ -228,7 +230,7 @@ async function runTool(db: SupabaseClient, teacherId: string, name: string, a: A
       if (typeof a.title === 'string') patch.title = str(a.title, 200)
       if (typeof a.prompt === 'string') patch.prompt = str(a.prompt)
       for (const k of ['html', 'css']) if (typeof a[k] === 'string') patch[k] = big(a[k])
-      for (const k of ['edit_html', 'edit_css', 'text_answer', 'show_preview']) if (typeof a[k] === 'boolean') patch[k] = a[k]
+      for (const k of ['edit_html', 'edit_css', 'text_answer', 'show_preview']) if (bool(a[k]) !== undefined) patch[k] = bool(a[k])
       if (Number.isInteger(a.position)) patch.position = a.position
       if (Object.keys(patch).length) {
         const { error } = await db.from('exercises').update(patch).eq('id', a.exercise_id)
