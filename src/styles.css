@@ -552,3 +552,27 @@ a.btn { text-decoration: none; }
 @keyframes bv-wobble { 50% { transform: rotate(4deg) scale(1.08); } }
 @keyframes bv-spin { 0%, 100% { transform: rotate(-6deg); } 50% { transform: rotate(6deg) scale(1.04); } }
 @keyframes bv-pulse { 50% { transform: scale(1.12); } }
+
+/* ---------- Corrección en modal ---------- */
+.gm-backdrop { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; padding: 3vh 2vw; background: rgba(5, 7, 10, .7); backdrop-filter: blur(2px); animation: rise .15s ease-out; }
+.gm { width: min(1500px, 100%); height: 100%; display: flex; flex-direction: column; gap: 10px; padding: 16px 18px; border-radius: 14px; border: 1px solid var(--line); background: var(--bg-elev); box-shadow: 0 30px 80px rgba(0,0,0,.55); overflow: auto; animation: zoom-in .18s ease-out; }
+.gm-head { display: flex; align-items: center; gap: 12px; }
+.gm-head h2 { margin: 0; font-size: 16px; flex: 1; display: flex; align-items: center; gap: 8px; }
+.gm-head .answer-time { position: static; }
+.gm .muted-rich p:last-child { margin-bottom: 0; }
+.gm-body { flex: 1; min-height: 360px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 12px; }
+.gm-code { display: grid; grid-auto-rows: minmax(0, 1fr); gap: 10px; min-height: 0; }
+.gm-results { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; min-height: 0; }
+.gm-results figure { margin: 0; display: flex; flex-direction: column; min-height: 0; }
+.gm-results figcaption { font-size: 11px; color: var(--muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: .05em; }
+.gm-results .compare-frame { flex: 1; height: auto; min-height: 0; }
+.gm .grade-actions { margin-top: 0; }
+@media (max-width: 900px) {
+  .gm-body { grid-template-columns: 1fr; }
+  .gm-code { grid-auto-rows: 240px; }
+  .gm-results { grid-auto-rows: 280px; }
+}
+.gm-code { display: flex; flex-direction: column; }
+.gm-code .slide-pane { flex: 1 1 0; }
+.gm-code .slide-pane.is-fixed { flex: 0 1 auto; max-height: 45%; }
+.gm-code .slide-pane.is-fixed .slide-editor { overflow: auto; }

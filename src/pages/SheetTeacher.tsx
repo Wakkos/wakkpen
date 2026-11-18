@@ -522,52 +522,66 @@ function GradeDrawer({ exercise, index, student, sub, suggestion, onClose, onGra
     if (status !== 'submitted') onNext()
   }
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  const pane = (lang: 'html' | 'css') => {
+    const editable = lang === 'html' ? exercise.edit_html : exercise.edit_css
+    const value = editable ? (lang === 'html' ? sub.answer_html : sub.answer_css) : exercise[lang]
+    if (!editable && !value.trim()) return null
+    return (
+      <div className={`slide-pane${editable ? '' : ' is-fixed'}`}>
+        <div className="pane-label">
+          {lang.toUpperCase()}
+          {!editable && <LockIcon />}
+        </div>
+        <div className="slide-editor">
+          <CodeEditor lang={lang} value={value} readOnly />
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div className="drawer drawer-wide" role="dialog" aria-label="Corregir">
-      <header className="drawer-header">
+    <div className="gm-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="gm" role="dialog" aria-modal="true" aria-label="Corregir">
+      <header className="gm-head">
         <h2>
           {student.nombre} · {index + 1}. {exercise.title}
           {sub.graded_by === 'claude' && <span className="tag tag-claude">Claude</span>}
         </h2>
+        <span className="answer-time">{timeAgo(sub.submitted_at)}</span>
         <button className="icon-btn" onClick={onClose} aria-label="Cerrar">
           ×
         </button>
       </header>
       <RichText text={exercise.prompt} className="muted-rich" />
-      <div className="answer-box">
-        {(exercise.edit_html || exercise.edit_css) && (
-          <div className="ex-edit-code">
-            {exercise.edit_html && (
-              <div className="answer-code">
-                <CodeEditor lang="html" value={sub.answer_html} readOnly />
-              </div>
-            )}
-            {exercise.edit_css && (
-              <div className="answer-code">
-                <CodeEditor lang="css" value={sub.answer_css} readOnly />
-              </div>
-            )}
-          </div>
-        )}
-        {exercise.text_answer && <p className="answer-text">{sub.answer || <em className="muted">Sin texto</em>}</p>}
-        <span className="answer-time">{timeAgo(sub.submitted_at)}</span>
-      </div>
       {hasCode(exercise) && (
-        <div className="compare">
-          <figure>
-            <figcaption>Su resultado</figcaption>
-            <div className="compare-frame">
-              <ResultPreview {...compose(exercise, sub.answer_html, sub.answer_css)} />
-            </div>
-          </figure>
-          <figure>
-            <figcaption>Solución</figcaption>
-            <div className="compare-frame">
-              <ResultPreview {...solutionParts(exercise, { html: exercise.solution_html, css: exercise.solution_css })} />
-            </div>
-          </figure>
+        <div className="gm-body">
+          <div className="gm-code">
+            {pane('html')}
+            {pane('css')}
+          </div>
+          <div className="gm-results">
+            <figure>
+              <figcaption>Su resultado</figcaption>
+              <div className="compare-frame">
+                <ResultPreview {...compose(exercise, sub.answer_html, sub.answer_css)} />
+              </div>
+            </figure>
+            <figure>
+              <figcaption>Solución</figcaption>
+              <div className="compare-frame">
+                <ResultPreview {...solutionParts(exercise, { html: exercise.solution_html, css: exercise.solution_css })} />
+              </div>
+            </figure>
+          </div>
         </div>
       )}
+      {exercise.text_answer && <p className="answer-text">{sub.answer || <em className="muted">Sin texto</em>}</p>}
       {exercise.solution && (
         <details className="solution-peek" open={exercise.text_answer}>
           <summary>{exercise.text_answer ? 'Respuesta esperada' : 'Explicación'}</summary>
@@ -602,6 +616,7 @@ function GradeDrawer({ exercise, index, student, sub, suggestion, onClose, onGra
           </button>
         )}
       </div>
+    </div>
     </div>
   )
 }
