@@ -17,8 +17,8 @@ export function Login() {
       options: { emailRedirectTo: window.location.origin },
     })
     setBusy(false)
-    // El alta de correos que no son @esat.es la rechaza la base de datos.
-    if (error) setError(/esat|database error|saving new user/i.test(error.message) ? 'Usa tu correo de @esat.es' : error.message)
+    // El alta de correos que no son de ESAT la rechaza la base de datos.
+    if (error) setError(/esat|database error|saving new user/i.test(error.message) ? 'Usa tu correo de ESAT (@esat.es o @esat-alumni.com)' : error.message)
     else setStep('code')
   }
 
