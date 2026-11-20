@@ -1,5 +1,5 @@
 // Borra un alumno: sus archivos de Storage y su usuario (perfil, pens y metadatos caen en cascada).
-// Solo el profesor puede llamarla. El service role vive aquí, nunca en el cliente.
+// Solo un profe, y solo para alumnos de sus sesiones o sin sesión. El service role vive aquí, nunca en el cliente.
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
 const BUCKET = 'pen-assets'
@@ -26,8 +26,6 @@ Deno.serve(async (req) => {
   const caller = createClient(url, anon, { global: { headers: { Authorization: auth } } })
   const { data: userData, error: userErr } = await caller.auth.getUser()
   if (userErr || !userData.user) return json({ error: 'No autenticado' }, 401)
-  const { data: isTeacher, error: rpcErr } = await caller.rpc('is_teacher')
-  if (rpcErr || isTeacher !== true) return json({ error: 'Solo el profesor puede borrar usuarios' }, 403)
 
   let userId = ''
   try {
@@ -37,6 +35,9 @@ Deno.serve(async (req) => {
   }
   if (!/^[0-9a-f-]{36}$/i.test(userId)) return json({ error: 'user_id no válido' }, 400)
   if (userId === userData.user.id) return json({ error: 'No puedes borrarte a ti mismo' }, 400)
+  // Solo alumnos de mis sesiones o sin ninguna sesión.
+  const { data: allowed, error: rpcErr } = await caller.rpc('can_delete_user', { p_user: userId })
+  if (rpcErr || allowed !== true) return json({ error: 'Solo puedes borrar alumnos de tus sesiones o sin sesión' }, 403)
 
   const admin = createClient(url, service, { auth: { persistSession: false } })
 

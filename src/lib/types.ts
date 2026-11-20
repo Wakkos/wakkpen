@@ -28,6 +28,7 @@ export interface Pen {
   gh_pages_url: string | null
   libs: string[]
   live_token: string
+  session_id: string | null
 }
 
 export interface PenWithOwner extends Pen {

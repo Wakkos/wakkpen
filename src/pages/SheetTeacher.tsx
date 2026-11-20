@@ -24,6 +24,7 @@ import { CodeEditor } from '../components/CodeEditor'
 import { Preview } from '../components/Preview'
 import { timeAgo } from '../lib/export'
 import { LockIcon } from './SheetStudent'
+import { useSessions } from '../lib/sessions'
 
 export function SheetTeacher() {
   const { id } = useParams<{ id: string }>()
@@ -39,12 +40,16 @@ export function SheetTeacher() {
   const [save, setSave] = useState<SaveState>('idle')
   const [dirty, setDirty] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [assigned, setAssigned] = useState<Set<string>>(new Set())
+  const { sessions, members } = useSessions()
 
   const load = useCallback(async () => {
     if (!id) return
     const { data: s } = await supabase.from('exercise_sheets').select('*').eq('id', id).maybeSingle()
     if (!s) return navigate('/profesor/ejercicios')
     setSheet(s as Sheet)
+    const { data: links } = await supabase.from('session_sheets').select('session_id').eq('sheet_id', id)
+    setAssigned(new Set(((links as { session_id: string }[]) ?? []).map((l) => l.session_id)))
     const { data: ex } = await supabase.from('exercises').select('*').eq('sheet_id', id).order('position')
     const list = (ex as Exercise[]) ?? []
     const ids = list.map((e) => e.id)
@@ -161,6 +166,24 @@ export function SheetTeacher() {
 
   if (!sheet) return <div className="app-loading" />
 
+  async function toggleSession(sessionId: string, on: boolean) {
+    setError(null)
+    setAssigned((a) => {
+      const n = new Set(a)
+      if (on) n.add(sessionId)
+      else n.delete(sessionId)
+      return n
+    })
+    const { error: err } = on
+      ? await supabase.from('session_sheets').insert({ session_id: sessionId, sheet_id: sheet!.id })
+      : await supabase.from('session_sheets').delete().eq('session_id', sessionId).eq('sheet_id', sheet!.id)
+    if (err) setError(err.message)
+  }
+
+  // En la cuadrícula: los alumnos de las sesiones de la hoja y cualquiera que haya entregado.
+  const submitters = new Set(Object.values(subs).map((x) => x.user_id))
+  const gridStudents = students.filter((st) => submitters.has(st.id) || [...assigned].some((sid) => members[sid]?.has(st.id)))
+
   const saved = drafts.filter((d) => d.id)
   const allPublished = saved.length > 0 && saved.every((d) => d.solution_published)
 
@@ -181,6 +204,18 @@ export function SheetTeacher() {
           </button>
         </div>
       </div>
+
+      {sessions.some((x) => !x.archived || assigned.has(x.id)) && (
+        <div className="session-chips" aria-label="Sesiones de esta hoja">
+          {sessions
+            .filter((x) => !x.archived || assigned.has(x.id))
+            .map((x) => (
+              <button key={x.id} className={`chip${assigned.has(x.id) ? ' is-on' : ''}`} onClick={() => toggleSession(x.id, !assigned.has(x.id))} aria-pressed={assigned.has(x.id)}>
+                {x.title}
+              </button>
+            ))}
+        </div>
+      )}
 
       <div className="tabs">
         <button className={tab === 'grade' ? 'is-on' : ''} onClick={() => setTab('grade')}>
@@ -220,7 +255,7 @@ export function SheetTeacher() {
       ) : (
         <GradeGrid
           exercises={saved}
-          students={students}
+          students={gridStudents}
           subs={subs}
           suggestions={suggestions}
           onToggleSolution={toggleSolution}

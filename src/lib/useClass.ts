@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { supabase } from './supabase'
 import type { Pen, Profile } from './types'
+import { ALL, useSessions } from './sessions'
 
-// Datos del aula para el profe: perfiles (con la mano levantada) y pens completos, en vivo.
+// Datos del aula para el profe: perfiles (con la mano levantada) y pens completos, en vivo,
+// filtrados por la sesión activa: sus alumnos y sus pens (los unidos a ella o sin sesión).
 export function useClassroom() {
   const [profiles, setProfiles] = useState<Record<string, Profile>>({})
   const [pens, setPens] = useState<Pen[] | null>(null)
@@ -42,12 +44,22 @@ export function useClassroom() {
     }
   }, [])
 
+  const { activeId, inActive } = useSessions()
+  const scoped = useMemo(() => {
+    const prof = Object.fromEntries(Object.entries(profiles).filter(([, p]) => p.role === 'teacher' || inActive(p.id)))
+    const list =
+      pens?.filter((p) =>
+        activeId === ALL ? inActive(p.owner_id) : p.session_id === activeId || (!p.session_id && inActive(p.owner_id)),
+      ) ?? null
+    return { profiles: prof, pens: list }
+  }, [profiles, pens, activeId, inActive])
+
   async function lowerHand(userId: string) {
     setProfiles((p) => (p[userId] ? { ...p, [userId]: { ...p[userId], hand_raised_at: null } } : p))
     await supabase.rpc('lower_hand', { p_user: userId })
   }
 
-  return { profiles, pens, flash, lowerHand }
+  return { profiles: scoped.profiles, pens: scoped.pens, flash, lowerHand }
 }
 
 // Manos levantadas primero (por orden de llegada), luego por nombre.

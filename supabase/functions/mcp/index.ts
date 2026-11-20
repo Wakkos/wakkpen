@@ -31,6 +31,20 @@ const exerciseSchema = {
 
 const TOOLS = [
   {
+    name: 'list_sessions',
+    description: 'Lista las sesiones del profesor (clases o sesiones sueltas): código, enlace para unirse, alumnos y hojas asignadas.',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'assign_sheet',
+    description: 'Asigna (o quita) una hoja a una sesión del profesor. Si la hoja ya está publicada, los alumnos de esa sesión reciben un aviso.',
+    inputSchema: {
+      type: 'object',
+      properties: { sheet_id: { type: 'string' }, session_id: { type: 'string' }, assigned: { type: 'boolean', description: 'false para quitarla. Por defecto true.' } },
+      required: ['sheet_id', 'session_id'],
+    },
+  },
+  {
     name: 'list_sheets',
     description: 'Lista las hojas de ejercicios con su estado (borrador/publicada), número de ejercicios y de entregas.',
     inputSchema: { type: 'object', properties: {} },
@@ -48,6 +62,7 @@ const TOOLS = [
       properties: {
         title: { type: 'string' },
         intro: { type: 'string', description: 'Introducción opcional para los alumnos' },
+        session_id: { type: 'string', description: 'Sesión a la que se asigna (opcional; ver list_sessions).' },
         exercises: { type: 'array', items: exerciseSchema },
       },
       required: ['title', 'exercises'],
@@ -87,8 +102,8 @@ const TOOLS = [
   },
   {
     name: 'list_students',
-    description: 'Lista los alumnos (nombre y email).',
-    inputSchema: { type: 'object', properties: {} },
+    description: 'Lista los alumnos de las sesiones del profesor (nombre, email y sesiones), o los de una sesión.',
+    inputSchema: { type: 'object', properties: { session_id: { type: 'string', description: 'Opcional: solo esta sesión' } } },
   },
   {
     name: 'get_submissions',
@@ -172,18 +187,85 @@ async function insertExercises(db: SupabaseClient, sheetId: string, list: Args[]
   return created
 }
 
+// ---------- Lo que puede tocar cada profe (el cliente usa el service role: aquí se acota) ----------
+async function mySessionIds(db: SupabaseClient, teacherId: string): Promise<string[]> {
+  const { data } = await db.from('session_teachers').select('session_id').eq('user_id', teacherId)
+  return (data ?? []).map((r: Args) => r.session_id as string)
+}
+
+// Hojas que gestiona: las suyas y las asignadas a sus sesiones.
+async function mySheetIds(db: SupabaseClient, teacherId: string): Promise<string[]> {
+  const sessions = await mySessionIds(db, teacherId)
+  const [{ data: own }, { data: linked }] = await Promise.all([
+    db.from('exercise_sheets').select('id').eq('created_by', teacherId),
+    sessions.length ? db.from('session_sheets').select('sheet_id').in('session_id', sessions) : Promise.resolve({ data: [] }),
+  ])
+  return [...new Set([...(own ?? []).map((r: Args) => r.id as string), ...(linked ?? []).map((r: Args) => r.sheet_id as string)])]
+}
+
+async function guard(db: SupabaseClient, teacherId: string, a: Args) {
+  const nope = () => {
+    throw new Error('No encontrado o no es de tus hojas/sesiones')
+  }
+  const sheets = () => mySheetIds(db, teacherId)
+  if (typeof a.session_id === 'string' && !(await mySessionIds(db, teacherId)).includes(a.session_id)) nope()
+  if (typeof a.sheet_id === 'string' && !(await sheets()).includes(a.sheet_id)) nope()
+  if (typeof a.exercise_id === 'string') {
+    const { data } = await db.from('exercises').select('sheet_id').eq('id', a.exercise_id).maybeSingle()
+    if (!data || !(await sheets()).includes(data.sheet_id)) nope()
+  }
+  if (typeof a.submission_id === 'string') {
+    const { data } = await db.from('submissions').select('exercises(sheet_id)').eq('id', a.submission_id).maybeSingle()
+    const sheet = (data as { exercises: { sheet_id: string } | null } | null)?.exercises?.sheet_id
+    if (!sheet || !(await sheets()).includes(sheet)) nope()
+  }
+}
+
 async function runTool(db: SupabaseClient, teacherId: string, name: string, a: Args): Promise<unknown> {
+  await guard(db, teacherId, a)
   switch (name) {
+    case 'list_sessions': {
+      const ids = await mySessionIds(db, teacherId)
+      if (!ids.length) return []
+      const { data } = await db
+        .from('sessions')
+        .select('id, code, title, is_open, archived, session_members(count), session_sheets(exercise_sheets(id, title))')
+        .in('id', ids)
+        .order('created_at', { ascending: false })
+      return (data ?? []).map((s: Args & { session_members: { count: number }[]; session_sheets: { exercise_sheets: Args | null }[] }) => ({
+        id: s.id,
+        title: s.title,
+        code: s.code,
+        link: `https://code.wakkos.com/s/${s.code}`,
+        open: s.is_open,
+        archived: s.archived,
+        students: s.session_members?.[0]?.count ?? 0,
+        sheets: s.session_sheets.map((x) => x.exercise_sheets).filter(Boolean),
+      }))
+    }
+    case 'assign_sheet': {
+      if (a.assigned === false || a.assigned === 'false') {
+        await db.from('session_sheets').delete().eq('session_id', a.session_id).eq('sheet_id', a.sheet_id)
+        return { ok: true }
+      }
+      const { error } = await db.from('session_sheets').upsert({ session_id: a.session_id, sheet_id: a.sheet_id })
+      if (error) throw new Error(error.message)
+      return { ok: true }
+    }
     case 'list_sheets': {
+      const ids = await mySheetIds(db, teacherId)
+      if (!ids.length) return []
       const { data, error } = await db
         .from('exercise_sheets')
-        .select('id, title, published, updated_at, exercises(id, submissions(count))')
+        .select('id, title, published, updated_at, exercises(id, submissions(count)), session_sheets(sessions(title))')
+        .in('id', ids)
         .order('created_at', { ascending: false })
       if (error) throw new Error(error.message)
-      return (data ?? []).map((s: Args & { exercises: { submissions: { count: number }[] }[] }) => ({
+      return (data ?? []).map((s: Args & { exercises: { submissions: { count: number }[] }[]; session_sheets: { sessions: { title: string } | null }[] }) => ({
         id: s.id,
         title: s.title,
         published: s.published,
+        sessions: s.session_sheets.map((x) => x.sessions?.title).filter(Boolean),
         exercises: s.exercises.length,
         submissions: s.exercises.reduce((n, e) => n + (e.submissions?.[0]?.count ?? 0), 0),
         updated_at: s.updated_at,
@@ -208,6 +290,7 @@ async function runTool(db: SupabaseClient, teacherId: string, name: string, a: A
         .select('id, title')
         .single()
       if (error) throw new Error(error.message)
+      if (typeof a.session_id === 'string') await db.from('session_sheets').insert({ session_id: a.session_id, sheet_id: s.id })
       const created = await insertExercises(db, s.id, (a.exercises as Args[]) ?? [], 0)
       return { sheet: s, exercises: created, note: 'Creada en borrador. El profesor la revisa y la publica desde Wakkpen.' }
     }
@@ -254,8 +337,16 @@ async function runTool(db: SupabaseClient, teacherId: string, name: string, a: A
       return { ok: true }
     }
     case 'list_students': {
-      const { data } = await db.from('profiles').select('id, nombre, email').eq('role', 'student').order('nombre')
-      return data ?? []
+      const ids = typeof a.session_id === 'string' ? [a.session_id] : await mySessionIds(db, teacherId)
+      if (!ids.length) return []
+      const { data } = await db.from('session_members').select('profiles(id, nombre, email), sessions(title)').in('session_id', ids)
+      const out: Record<string, { nombre: string; email: string; sessions: string[] }> = {}
+      for (const r of (data ?? []) as { profiles: { id: string; nombre: string; email: string } | null; sessions: { title: string } | null }[]) {
+        if (!r.profiles) continue
+        const o = (out[r.profiles.id] ??= { nombre: r.profiles.nombre, email: r.profiles.email, sessions: [] })
+        if (r.sessions) o.sessions.push(r.sessions.title)
+      }
+      return Object.values(out).sort((x, y) => x.nombre.localeCompare(y.nombre))
     }
     case 'get_submissions': {
       let q = db
@@ -373,11 +464,12 @@ Deno.serve(async (req) => {
             result: {
               protocolVersion: (params.protocolVersion as string) ?? '2025-06-18',
               capabilities: { tools: { listChanged: false } },
-              serverInfo: { name: 'wakkpen', version: '0.3.0' },
+              serverInfo: { name: 'wakkpen', version: '0.4.0' },
               instructions:
                 'Wakkpen es la herramienta de clase de frontend del profesor. Crea hojas de ejercicios breves (3–5 min) en español, con enunciados claros, ' +
                 'código entre `backticks` y una solución por ejercicio. Cada ejercicio es un pen pequeño con su propio HTML y CSS (trocitos cortos, solo lo necesario); ' +
                 'edit_html / edit_css dicen qué parte puede tocar el alumno, y la solución es el HTML/CSS completo de esa parte. Sin JavaScript. ' +
+                'Cada profe trabaja con sus sesiones (list_sessions) y sus hojas; al crear una hoja puedes asignarla a una sesión. ' +
                 'Las hojas se crean en borrador. Para corregir: suggest_grade por defecto; grade_submission solo si el profesor pide expresamente que corrijas.',
             },
           }

@@ -17,6 +17,7 @@ import { QrPanel } from '../components/QrPanel'
 import { HandButton } from '../components/HandButton'
 import { PaneToggles, LayoutToggle, IconPopout, IconQr, usePref } from '../components/EditorChrome'
 import { TopBar } from '../components/Layout'
+import { useSessions } from '../lib/sessions'
 
 type Fields = Pick<Pen, 'title' | 'html' | 'css' | 'css_lang' | 'js' | 'libs'>
 type PanelName = 'files' | 'github' | 'libs' | 'qr' | null
@@ -228,6 +229,7 @@ export function Editor() {
             aria-label="Título"
           />
           {!readOnly && <StatusDot state={save} />}
+          {!readOnly && <PenSession penId={pen.id} value={pen.session_id} onChange={(session_id) => setPen({ ...pen, session_id })} />}
           <PaneToggles hidden={hidden} onChange={setHidden} cssLang={fields.css_lang} />
           <div className="editor-actions">
             <button className={`btn btn-ghost btn-sm${fields.libs.length ? ' has-count' : ''}`} data-count={fields.libs.length} onClick={() => toggle('libs')}>
@@ -340,4 +342,28 @@ function payload(f: Fields): LivePayload {
 
 function snapKey(f: Fields) {
   return `${f.html.length}:${f.css.length}:${f.js.length}:${f.html}${f.css}${f.js}`
+}
+
+// El alumno une su pen a una de sus sesiones para que lo vean sus profes en ella.
+function PenSession({ penId, value, onChange }: { penId: string; value: string | null; onChange: (v: string | null) => void }) {
+  const { sessions } = useSessions()
+  const live = sessions.filter((x) => !x.archived || x.id === value)
+  if (!live.length) return null
+  async function change(v: string) {
+    const next = v || null
+    const prev = value
+    onChange(next)
+    const { error } = await supabase.from('pens').update({ session_id: next }).eq('id', penId)
+    if (error) onChange(prev)
+  }
+  return (
+    <select className="select select-sm pen-session" value={value ?? ''} onChange={(e) => change(e.target.value)} aria-label="Sesión del pen">
+      <option value="">Sin sesión</option>
+      {live.map((x) => (
+        <option key={x.id} value={x.id}>
+          {x.title}
+        </option>
+      ))}
+    </select>
+  )
 }

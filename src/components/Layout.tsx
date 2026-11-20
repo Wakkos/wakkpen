@@ -3,6 +3,7 @@ import { Link, NavLink } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { supabase } from '../lib/supabase'
 import { NotificationBell } from './NotificationBell'
+import { SessionSwitcher } from '../lib/sessions'
 
 export function Logo() {
   return (
@@ -82,6 +83,7 @@ export function TopBar({ children }: { children?: ReactNode }) {
       <nav className="topnav">
         {teacher ? (
           <>
+            <NavLink to="/profesor/sesiones">Sesiones</NavLink>
             <NavLink to="/profesor" end>
               En vivo
             </NavLink>
@@ -93,9 +95,11 @@ export function TopBar({ children }: { children?: ReactNode }) {
           <>
             <NavLink to="/pens">Mis pens</NavLink>
             <NavLink to="/ejercicios">Ejercicios</NavLink>
+            <NavLink to="/sesiones">Sesiones</NavLink>
           </>
         )}
       </nav>
+      {teacher && <SessionSwitcher />}
       <div className="topbar-slot">{children}</div>
       <NotificationBell />
       <UserMenu />

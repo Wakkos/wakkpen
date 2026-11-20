@@ -4,6 +4,7 @@ import { useAuth } from '../lib/auth'
 import { supabase } from '../lib/supabase'
 import { useNotifications, type Notification } from '../lib/notifications'
 import { timeAgo } from '../lib/export'
+import { useSessions } from '../lib/sessions'
 
 const isExternal = (link: string) => /^https?:\/\//i.test(link)
 
@@ -85,8 +86,11 @@ export function NotificationBell() {
   )
 }
 
-// El profe envía un aviso a todos los alumnos, con un enlace opcional.
+// El profe envía un aviso a los alumnos de una de sus sesiones, con un enlace opcional.
 function NoticeForm() {
+  const { sessions, active } = useSessions()
+  const live = sessions.filter((x) => !x.archived)
+  const [target, setTarget] = useState(active?.id ?? live[0]?.id ?? '')
   const [title, setTitle] = useState('')
   const [link, setLink] = useState('')
   const [state, setState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
@@ -96,10 +100,10 @@ function NoticeForm() {
     e.preventDefault()
     if (!title.trim()) return
     setState('sending')
-    let target = link.trim()
+    let url = link.trim()
     // Un enlace de la propia app se guarda como ruta para abrirlo sin recargar.
-    if (target.startsWith(location.origin)) target = target.slice(location.origin.length) || '/'
-    const { data, error: err } = await supabase.rpc('send_notice', { p_title: title, p_link: target })
+    if (url.startsWith(location.origin)) url = url.slice(location.origin.length) || '/'
+    const { data, error: err } = await supabase.rpc('send_notice', { p_session: target || live[0]?.id, p_title: title, p_link: url })
     if (err) {
       setState('error')
       setError(err.message)
@@ -112,8 +116,19 @@ function NoticeForm() {
     setTimeout(() => setState('idle'), 2500)
   }
 
+  if (!live.length) return <p className="notif-empty">Crea una sesión para enviar avisos.</p>
+
   return (
     <form className="notice-form" onSubmit={send}>
+      {live.length > 1 && (
+        <select className="select select-sm" value={target} onChange={(e) => setTarget(e.target.value)} aria-label="Sesión">
+          {live.map((x) => (
+            <option key={x.id} value={x.id}>
+              {x.title}
+            </option>
+          ))}
+        </select>
+      )}
       <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Aviso para la clase" maxLength={300} />
       <div className="notice-row">
         <input className="input" value={link} onChange={(e) => setLink(e.target.value)} placeholder="Enlace (opcional)" />

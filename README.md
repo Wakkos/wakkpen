@@ -92,6 +92,15 @@ Herramientas: listar/ver/crear/editar hojas y ejercicios (siempre en borrador), 
 (sugerencia que el profe aplica o descarta). Claude no puede publicar hojas ni soluciones ni corregir.
 Siguiente paso previsto: OAuth por profesor y clases, sustituyendo el token de la URL.
 
+## Sesiones y varios profes
+- Cada profe crea **sesiones** (`/profesor/sesiones`): una larga hace de clase ("Frontend UI 26/27"), una corta de clase del día.
+- Los alumnos entran con el **enlace** `/s/CODIGO` (o escribiendo el código en "Sesiones"). Basta el enlace; el profe puede cerrar la sesión a gente nueva.
+- **Coprofes**: se añaden por correo en la sesión; tienen que estar en `teacher_email`.
+- El **selector de sesión** de la barra filtra En vivo, Muro y Alumnos. Cada profe solo ve alumnos de sus sesiones (y los recién dados de alta sin sesión, para poder borrarlos).
+- **Hojas**: son de quien las crea y se asignan a sesiones; las gestionan su autor y los profes de esas sesiones. Los alumnos ven todas las publicadas; los avisos van a los de sus sesiones.
+- **Pens**: el alumno puede unir un pen a una sesión (selector en el editor o "Nuevo pen" en la sesión).
+- **Invitados**: con "Correos de fuera de ESAT", quien entre por el enlace puede darse de alta con cualquier correo.
+
 ## Funciones del aula
 - **Muro** (`/profesor/muro`): vista previa en vivo de todos los alumnos; clic para pantalla completa, flechas para pasar, Esc para salir.
 - **Levantar la mano**: botón ✋ del alumno; el profe la ve en "En vivo" y en el muro y la baja con un clic.
