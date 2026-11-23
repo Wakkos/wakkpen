@@ -21,6 +21,7 @@ import { Bienvenida } from './components/Bienvenida'
 import { SessionsProvider } from './lib/sessions'
 import { TeacherSessions, SessionTeacher, StudentSessions, SessionStudent } from './pages/Sessions'
 import { Join, PendingJoin } from './pages/Join'
+import { ClassMode } from './pages/ClassMode'
 
 function TeacherOnly({ children }: { children: ReactNode }) {
   const { profile } = useAuth()
@@ -50,6 +51,7 @@ function Gate() {
       <Route path="/ejercicios/:id" element={<SheetStudent />} />
       <Route path="/profesor/ejercicios" element={<TeacherOnly><TeacherSheets /></TeacherOnly>} />
       <Route path="/profesor/ejercicios/:id" element={<TeacherOnly><SheetTeacher /></TeacherOnly>} />
+      <Route path="/profesor/ejercicios/:id/clase" element={<TeacherOnly><ClassMode /></TeacherOnly>} />
       <Route path="/profesor/claude" element={<TeacherOnly><ClaudeConnect /></TeacherOnly>} />
       <Route path="/profesor" element={<TeacherOnly><Teacher /></TeacherOnly>} />
       <Route path="/profesor/pen/:id" element={<TeacherOnly><TeacherPen /></TeacherOnly>} />

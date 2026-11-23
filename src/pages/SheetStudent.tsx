@@ -3,7 +3,7 @@ import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import type { SaveState } from '../lib/types'
-import { STATUS_LABEL, compose, hasCode, startParts, type Exercise, type Sheet, type Solution, type Submission } from '../lib/exercises'
+import { STATUS_LABEL, compose, hasCode, solutionParts, startParts, type Exercise, type Sheet, type Solution, type Submission } from '../lib/exercises'
 import { Page } from '../components/Layout'
 import { RichText } from '../components/RichText'
 import { CodeEditor } from '../components/CodeEditor'
@@ -189,9 +189,12 @@ function Slide({ n, total, exercise: ex, solution, sub, draft, dirty, preview, o
   const status = sub?.status ?? 'none'
   const showHtml = ex.edit_html || !!ex.html.trim()
   const showCss = ex.edit_css || !!ex.css.trim()
-  const showPreview = hasCode(ex) && (ex.show_preview || graded)
+  // Con la solución publicada, el ejercicio tiene una segunda pestaña: la solución con su resultado.
+  const [view, setView] = useState<'mine' | 'sol'>('mine')
+  const sol = view === 'sol' && solution ? solutionParts(ex, solution) : null
+  const showPreview = hasCode(ex) && (ex.show_preview || graded || !!sol)
   // Con la vista previa a la vista se ve lo que hay en los editores; si no, lo entregado.
-  const result = ex.show_preview ? compose(ex, draft.html, draft.css) : compose(ex, sub?.answer_html ?? '', sub?.answer_css ?? '')
+  const result = sol ?? (ex.show_preview ? compose(ex, draft.html, draft.css) : compose(ex, sub?.answer_html ?? '', sub?.answer_css ?? ''))
 
   async function submit() {
     setState('saving')
@@ -233,7 +236,11 @@ function Slide({ n, total, exercise: ex, solution, sub, draft, dirty, preview, o
           {fixed && <LockIcon />}
         </div>
         <div className="slide-editor">
-          <CodeEditor lang={lang} value={draft[lang]} readOnly={!editable} onChange={(v) => onDraft({ ...draft, [lang]: v })} />
+          {sol ? (
+            <CodeEditor key="sol" lang={lang} value={sol[lang]} readOnly />
+          ) : (
+            <CodeEditor key="mine" lang={lang} value={draft[lang]} readOnly={!editable} onChange={(v) => onDraft({ ...draft, [lang]: v })} />
+          )}
         </div>
       </div>
     )
@@ -244,12 +251,22 @@ function Slide({ n, total, exercise: ex, solution, sub, draft, dirty, preview, o
       <header className="slide-head">
         <span className="ex-num">{n}</span>
         <h2>{ex.title}</h2>
+        {solution && (
+          <div className="seg slide-tabs" role="tablist">
+            <button role="tab" aria-selected={view === 'mine'} className={view === 'mine' ? 'is-on' : ''} onClick={() => setView('mine')}>
+              Mi respuesta
+            </button>
+            <button role="tab" aria-selected={view === 'sol'} className={view === 'sol' ? 'is-on' : ''} onClick={() => setView('sol')}>
+              Solución
+            </button>
+          </div>
+        )}
         <span className={`status-chip st-${dirty ? 'draft' : status}`}>{dirty ? 'Sin entregar' : STATUS_LABEL[status]}</span>
       </header>
       <RichText text={ex.prompt} className="slide-prompt" />
 
       {hasCode(ex) && (
-        <div className={`slide-work${showPreview ? ' has-preview' : ''}${showHtml && showCss ? ' two' : ''}`}>
+        <div className={`slide-work${showPreview ? ' has-preview' : ''}${sol ? ' is-solution' : ''}${showHtml && showCss ? ' two' : ''}`}>
           <div className="slide-code">
             {showHtml && pane('html')}
             {showCss && pane('css')}
@@ -265,7 +282,7 @@ function Slide({ n, total, exercise: ex, solution, sub, draft, dirty, preview, o
         </div>
       )}
 
-      {ex.text_answer && (
+      {ex.text_answer && !sol && (
         <textarea
           className="input textarea slide-text"
           rows={3}
@@ -277,7 +294,12 @@ function Slide({ n, total, exercise: ex, solution, sub, draft, dirty, preview, o
       )}
 
       {sub?.comment && graded && <p className="teacher-comment">{sub.comment}</p>}
-      {solution && <SolutionView exercise={ex} solution={solution} />}
+      {sol && solution?.solution.trim() && (
+        <div className="solution">
+          <span className="solution-label">{ex.text_answer ? 'Respuesta' : 'Explicación'}</span>
+          <RichText text={solution.solution} />
+        </div>
+      )}
       {error && <p className="form-error">{error}</p>}
 
       <footer className="slide-nav">
@@ -304,32 +326,6 @@ function Slide({ n, total, exercise: ex, solution, sub, draft, dirty, preview, o
         </button>
       </footer>
     </section>
-  )
-}
-
-function SolutionView({ exercise: ex, solution }: { exercise: Exercise; solution: Solution }) {
-  const html = ex.edit_html && solution.html.trim()
-  const css = ex.edit_css && solution.css.trim()
-  if (!html && !css && !solution.solution.trim()) return null
-  return (
-    <div className="solution">
-      <span className="solution-label">Solución</span>
-      {(html || css) && (
-        <div className="solution-code">
-          {html && (
-            <div className="base-code">
-              <CodeEditor lang="html" value={solution.html} readOnly />
-            </div>
-          )}
-          {css && (
-            <div className="base-code">
-              <CodeEditor lang="css" value={solution.css} readOnly />
-            </div>
-          )}
-        </div>
-      )}
-      {solution.solution.trim() && <RichText text={solution.solution} />}
-    </div>
   )
 }
 

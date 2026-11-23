@@ -196,6 +196,9 @@ export function SheetTeacher() {
           <Link className="btn btn-ghost btn-sm" to={`/ejercicios/${sheet.id}`}>
             Vista alumno
           </Link>
+          <Link className="btn btn-ghost btn-sm" to={`/profesor/ejercicios/${sheet.id}/clase`}>
+            Corregir en clase
+          </Link>
           <button className={`btn btn-sm ${sheet.published ? 'btn-ghost' : 'btn-primary'}`} onClick={togglePublished}>
             {sheet.published ? 'Despublicar' : 'Publicar hoja'}
           </button>
