@@ -8,6 +8,7 @@ import { css } from '@codemirror/lang-css'
 import { sass } from '@codemirror/lang-sass'
 import { javascript } from '@codemirror/lang-javascript'
 import { oneDark } from '@codemirror/theme-one-dark'
+import { isDark, useIsDark } from '../lib/theme'
 import { emmetConfig, expandAbbreviation, EmmetKnownSyntax } from '@emmetio/codemirror6-plugin'
 
 export type EditorLang = 'html' | 'css' | 'scss' | 'js'
@@ -49,6 +50,8 @@ export function CodeEditor({ value, lang, onChange, readOnly = false }: Props) {
   const view = useRef<EditorView | null>(null)
   const langComp = useRef(new Compartment())
   const roComp = useRef(new Compartment())
+  const themeComp = useRef(new Compartment())
+  const dark = useIsDark()
   const onChangeRef = useRef(onChange)
   onChangeRef.current = onChange
 
@@ -61,7 +64,8 @@ export function CodeEditor({ value, lang, onChange, readOnly = false }: Props) {
         extensions: [
           basicSetup,
           keymap.of([indentWithTab]),
-          oneDark,
+          // En claro, el resaltado por defecto de CodeMirror; los fondos salen de las variables del tema.
+          themeComp.current.of(isDark() ? oneDark : []),
           baseTheme,
           langComp.current.of(langExt(lang)),
           roComp.current.of([EditorState.readOnly.of(readOnly), EditorView.editable.of(!readOnly)]),
@@ -83,6 +87,10 @@ export function CodeEditor({ value, lang, onChange, readOnly = false }: Props) {
   useEffect(() => {
     view.current?.dispatch({ effects: langComp.current.reconfigure(langExt(lang)) })
   }, [lang])
+
+  useEffect(() => {
+    view.current?.dispatch({ effects: themeComp.current.reconfigure(dark ? oneDark : []) })
+  }, [dark])
 
   useEffect(() => {
     view.current?.dispatch({

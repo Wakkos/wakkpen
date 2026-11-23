@@ -4,6 +4,7 @@ import { useAuth } from '../lib/auth'
 import { supabase } from '../lib/supabase'
 import { NotificationBell } from './NotificationBell'
 import { SessionSwitcher } from '../lib/sessions'
+import { useThemePref, type ThemePref } from '../lib/theme'
 
 export function Logo() {
   return (
@@ -65,6 +66,7 @@ function UserMenu() {
               Conectar con Claude
             </Link>
           )}
+          <ThemeSwitch />
           <button role="menuitem" className={`user-signout${leaving ? ' is-busy' : ''}`} onClick={signOut} disabled={leaving}>
             Desconectar
           </button>
@@ -112,6 +114,28 @@ export function Page({ children, bar, wide }: { children: ReactNode; bar?: React
     <div className="app">
       <TopBar>{bar}</TopBar>
       <main className={`page${wide ? ' page-wide' : ''}`}>{children}</main>
+    </div>
+  )
+}
+
+const THEMES: { value: ThemePref; label: string }[] = [
+  { value: 'system', label: 'Auto' },
+  { value: 'light', label: 'Claro' },
+  { value: 'dark', label: 'Oscuro' },
+]
+
+function ThemeSwitch() {
+  const [pref, setPref] = useThemePref()
+  return (
+    <div className="theme-switch" role="group" aria-label="Tema">
+      <span>Tema</span>
+      <div className="seg">
+        {THEMES.map((t) => (
+          <button key={t.value} className={pref === t.value ? 'is-on' : ''} onClick={() => setPref(t.value)} aria-pressed={pref === t.value}>
+            {t.label}
+          </button>
+        ))}
+      </div>
     </div>
   )
 }

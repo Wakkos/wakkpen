@@ -393,15 +393,18 @@ export function SessionStudent() {
   const [teachers, setTeachers] = useState<string[]>([])
   const [sheets, setSheets] = useState<Sheet[]>([])
   const [pens, setPens] = useState<Pen[]>([])
+  const [shared, setShared] = useState<Pen[]>([])
   const [creating, setCreating] = useState(false)
 
   useEffect(() => {
     if (!id || !auth) return
     ;(async () => {
-      const [{ data: t }, { data: ss }, { data: p }] = await Promise.all([
+      const [{ data: t }, { data: ss }, { data: p }, { data: sh }] = await Promise.all([
         supabase.from('session_teachers').select('profiles(nombre)').eq('session_id', id),
         supabase.from('session_sheets').select('exercise_sheets(*)').eq('session_id', id),
         supabase.from('pens').select('*').eq('owner_id', auth.user.id).eq('session_id', id).order('updated_at', { ascending: false }),
+        // Pens que los profes han compartido con la sesión.
+        supabase.from('pens').select('*').eq('session_id', id).neq('owner_id', auth.user.id).order('updated_at', { ascending: false }),
       ])
       setTeachers(((t as unknown as { profiles: { nombre: string } | null }[]) ?? []).map((x) => x.profiles?.nombre ?? '').filter(Boolean))
       setSheets(
@@ -410,6 +413,7 @@ export function SessionStudent() {
           .filter((x): x is Sheet => !!x && x.published),
       )
       setPens((p as Pen[]) ?? [])
+      setShared((sh as Pen[]) ?? [])
     })()
   }, [id, auth])
 
@@ -464,6 +468,22 @@ export function SessionStudent() {
             </li>
           ))}
         </ul>
+      )}
+
+      {shared.length > 0 && (
+        <>
+          <h2 className="section-title section-gap">Del profe</h2>
+          <ul className="pen-grid">
+            {shared.map((p) => (
+              <li key={p.id} className="pen-card">
+                <button className="pen-card-main" onClick={() => navigate(`/pen/${p.id}`)}>
+                  <span className="pen-title">{p.title}</span>
+                  <span className="pen-meta">{timeAgo(p.updated_at)}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
 
       <div className="section-head">

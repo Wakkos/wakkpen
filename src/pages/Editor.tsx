@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import type { CssLang, Pen, SaveState } from '../lib/types'
@@ -18,6 +18,7 @@ import { HandButton } from '../components/HandButton'
 import { PaneToggles, LayoutToggle, IconPopout, IconQr, usePref } from '../components/EditorChrome'
 import { TopBar } from '../components/Layout'
 import { useSessions } from '../lib/sessions'
+import { forkPen } from '../lib/files'
 
 type Fields = Pick<Pen, 'title' | 'html' | 'css' | 'css_lang' | 'js' | 'libs'>
 type PanelName = 'files' | 'github' | 'libs' | 'qr' | null
@@ -26,8 +27,10 @@ const SNAPSHOT_EVERY = 15000
 
 export function Editor() {
   const { id } = useParams<{ id: string }>()
-  const { session } = useAuth()
+  const { session, profile } = useAuth()
+  const navigate = useNavigate()
   const [pen, setPen] = useState<Pen | null>(null)
+  const [forking, setForking] = useState(false)
   const [notFound, setNotFound] = useState(false)
   const [fields, setFields] = useState<Fields | null>(null)
   const [save, setSave] = useState<SaveState>('idle')
@@ -216,7 +219,7 @@ export function Editor() {
     <div className="app app-editor">
       <TopBar>
         <div className="editor-bar">
-          <Link to={readOnly ? '/profesor' : '/pens'} className="back-btn" title="Volver" aria-label="Volver">
+          <Link to={readOnly && profile?.role === 'teacher' ? '/profesor' : '/pens'} className="back-btn" title="Volver" aria-label="Volver">
             ‹
           </Link>
           <input
@@ -229,9 +232,33 @@ export function Editor() {
             aria-label="Título"
           />
           {!readOnly && <StatusDot state={save} />}
-          {!readOnly && <PenSession penId={pen.id} value={pen.session_id} onChange={(session_id) => setPen({ ...pen, session_id })} />}
+          {!readOnly && (
+            <PenSession penId={pen.id} value={pen.session_id} teacher={profile?.role === 'teacher'} onChange={(session_id) => setPen({ ...pen, session_id })} />
+          )}
           <PaneToggles hidden={hidden} onChange={setHidden} cssLang={fields.css_lang} />
           <div className="editor-actions">
+            {readOnly && (
+              <button
+                className={`btn btn-primary btn-sm${forking ? ' is-busy' : ''}`}
+                disabled={forking}
+                onClick={async () => {
+                  if (!session) return
+                  setForking(true)
+                  try {
+                    const { id: newId, skipped } = await forkPen(session.user.id, pen.id)
+                    if (skipped) alert(`Copiado, pero ${skipped} archivo(s) no cabían en tu límite.`)
+                    navigate(`/pen/${newId}`)
+                  } catch (e) {
+                    alert(e instanceof Error ? e.message : String(e))
+                  } finally {
+                    setForking(false)
+                  }
+                }}
+                title="Crear una copia tuya de este pen"
+              >
+                Hacer fork
+              </button>
+            )}
             <button className={`btn btn-ghost btn-sm${fields.libs.length ? ' has-count' : ''}`} data-count={fields.libs.length} onClick={() => toggle('libs')}>
               Librerías
             </button>
@@ -345,7 +372,8 @@ function snapKey(f: Fields) {
 }
 
 // El alumno une su pen a una de sus sesiones para que lo vean sus profes en ella.
-function PenSession({ penId, value, onChange }: { penId: string; value: string | null; onChange: (v: string | null) => void }) {
+// En un pen de profe, unirlo a una de sus sesiones es compartirlo con sus alumnos (lo ven y pueden hacer fork).
+function PenSession({ penId, value, teacher, onChange }: { penId: string; value: string | null; teacher?: boolean; onChange: (v: string | null) => void }) {
   const { sessions } = useSessions()
   const live = sessions.filter((x) => !x.archived || x.id === value)
   if (!live.length) return null
@@ -358,10 +386,10 @@ function PenSession({ penId, value, onChange }: { penId: string; value: string |
   }
   return (
     <select className="select select-sm pen-session" value={value ?? ''} onChange={(e) => change(e.target.value)} aria-label="Sesión del pen">
-      <option value="">Sin sesión</option>
+      <option value="">{teacher ? 'Sin compartir' : 'Sin sesión'}</option>
       {live.map((x) => (
         <option key={x.id} value={x.id}>
-          {x.title}
+          {teacher ? `Compartido con ${x.title}` : x.title}
         </option>
       ))}
     </select>

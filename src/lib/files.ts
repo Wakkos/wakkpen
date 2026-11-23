@@ -101,3 +101,21 @@ export async function deletePenWithFiles(penId: string): Promise<void> {
   const { error } = await supabase.from('pens').delete().eq('id', penId)
   if (error) throw error
 }
+
+// Fork: copia el pen (en la base de datos) y después sus archivos, uno a uno, a la carpeta del que copia.
+// Si se pasa del límite de archivos, el pen se queda sin los que no caben.
+export async function forkPen(userId: string, penId: string): Promise<{ id: string; skipped: number }> {
+  const { data, error } = await supabase.rpc('fork_pen', { p_pen: penId })
+  if (error) throw error
+  const newId = data as string
+  let skipped = 0
+  for (const f of await listFiles(penId)) {
+    try {
+      const blob = await (await fetch(publicUrl(f.path))).blob()
+      await uploadFile(userId, newId, new File([blob], f.name, { type: f.mime }))
+    } catch {
+      skipped++
+    }
+  }
+  return { id: newId, skipped }
+}
