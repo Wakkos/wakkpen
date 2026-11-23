@@ -109,11 +109,11 @@ export function TopBar({ children }: { children?: ReactNode }) {
   )
 }
 
-export function Page({ children, bar, wide }: { children: ReactNode; bar?: ReactNode; wide?: boolean }) {
+export function Page({ children, bar, wide, fill }: { children: ReactNode; bar?: ReactNode; wide?: boolean; fill?: boolean }) {
   return (
     <div className="app">
       <TopBar>{bar}</TopBar>
-      <main className={`page${wide ? ' page-wide' : ''}`}>{children}</main>
+      <main className={`page${wide ? ' page-wide' : ''}${fill ? ' page-fill' : ''}`}>{children}</main>
     </div>
   )
 }

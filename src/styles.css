@@ -684,3 +684,36 @@ a.btn { text-decoration: none; }
 .user-pop .theme-switch button { height: 24px; padding: 0 8px; }
 html { transition: background-color .2s; }
 .section-gap { margin-top: 24px; }
+
+/* ---------- Ejercicio a pantalla completa: todo el alto para código y resultado ---------- */
+.page-fill { max-width: none; padding: 12px clamp(14px, 1.6vw, 24px) 12px; display: flex; flex-direction: column; gap: 8px; overflow: hidden; }
+.page-fill .slide-top { margin-bottom: 0; flex: none; }
+.page-fill .preview-banner, .page-fill .sheet-intro { margin: 0; flex: none; max-height: 18vh; overflow: auto; }
+.page-fill .slide { flex: 1; min-height: 0; gap: 8px; }
+.page-fill .slide-head h2 { font-size: 16px; }
+.page-fill .slide-prompt { flex: none; max-height: 22vh; overflow: auto; }
+.page-fill .slide-work { flex: 1; min-height: 0; height: auto; }
+.page-fill .slide-work.has-preview { grid-template-columns: minmax(0, var(--split, 50%)) 10px minmax(0, 1fr); gap: 0; }
+.page-fill .slide-text { flex: none; min-height: 56px; max-height: 18vh; }
+.page-fill .slide-nav { flex: none; padding-top: 0; }
+.page-fill .teacher-comment, .page-fill .solution { flex: none; max-height: 16vh; overflow: auto; }
+/* La parte bloqueada ocupa lo que mide; la editable, el resto. */
+.page-fill .slide-code { display: flex; flex-direction: column; gap: 8px; }
+.page-fill .slide-code .slide-pane { flex: 1 1 0; }
+.page-fill .slide-code .slide-pane.is-fixed { flex: 0 1 auto; max-height: 45%; }
+.page-fill .slide-code .slide-pane.is-fixed .slide-editor { overflow: auto; }
+/* Sin vista previa, también apilados: lo bloqueado arriba, compacto, y el resto para escribir. */
+.page-fill .slide-work.two:not(.has-preview) .slide-code { grid-template-columns: none; }
+.slide-split { cursor: col-resize; position: relative; touch-action: none; }
+.slide-split::after { content: ''; position: absolute; top: 50%; left: 50%; width: 4px; height: 36px; margin: -18px 0 0 -2px; border-radius: 2px; background: var(--line-strong); transition: background .15s, height .15s; }
+.slide-split:hover::after, .is-dragging .slide-split::after { background: var(--accent); height: 56px; margin-top: -28px; }
+body.is-dragging { cursor: col-resize; user-select: none; }
+body.is-dragging iframe { pointer-events: none; }
+@media (max-width: 820px) {
+  .page-fill { overflow: auto; }
+  .page-fill .slide-work, .page-fill .slide-work.has-preview { grid-template-columns: 1fr; height: auto; flex: none; }
+  .page-fill .slide-split { display: none; }
+  .page-fill .slide-code { flex-direction: column !important; }
+  .page-fill .slide-code .slide-pane { flex: none; height: 260px; }
+  .page-fill .slide-code .slide-pane.is-fixed { height: auto; max-height: 260px; }
+}

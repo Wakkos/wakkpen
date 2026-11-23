@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
@@ -109,7 +109,7 @@ export function SheetStudent() {
   const unsentIds = new Set(unsent.map((e) => e.id))
 
   return (
-    <Page wide>
+    <Page fill>
       <div className="slide-top">
         <Link to={preview ? `/profesor/ejercicios/${sheet.id}` : '/ejercicios'} className="back-link">
           ‹ {preview ? 'Volver a corregir' : 'Ejercicios'}
@@ -194,6 +194,31 @@ function Slide({ n, total, exercise: ex, solution, sub, draft, dirty, preview, o
   const sol = view === 'sol' && solution ? solutionParts(ex, solution) : null
   const showPreview = hasCode(ex) && (ex.show_preview || graded || !!sol)
   // Con la vista previa a la vista se ve lo que hay en los editores; si no, lo entregado.
+  // Reparto código / resultado, arrastrando la barra del medio. Se recuerda en este navegador.
+  const work = useRef<HTMLDivElement>(null)
+  const [split, setSplit] = useState(() => {
+    const v = Number(localStorage.getItem('wakkpen.split'))
+    return v >= 25 && v <= 75 ? v : 50
+  })
+  function drag(e: React.PointerEvent) {
+    const el = work.current
+    if (!el) return
+    e.currentTarget.setPointerCapture(e.pointerId)
+    const rect = el.getBoundingClientRect()
+    const move = (ev: PointerEvent) => {
+      const pct = Math.min(75, Math.max(25, ((ev.clientX - rect.left) / rect.width) * 100))
+      setSplit(pct)
+      localStorage.setItem('wakkpen.split', String(Math.round(pct)))
+    }
+    const up = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+      document.body.classList.remove('is-dragging')
+    }
+    document.body.classList.add('is-dragging')
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+  }
   const result = sol ?? (ex.show_preview ? compose(ex, draft.html, draft.css) : compose(ex, sub?.answer_html ?? '', sub?.answer_css ?? ''))
 
   async function submit() {
@@ -266,11 +291,16 @@ function Slide({ n, total, exercise: ex, solution, sub, draft, dirty, preview, o
       <RichText text={ex.prompt} className="slide-prompt" />
 
       {hasCode(ex) && (
-        <div className={`slide-work${showPreview ? ' has-preview' : ''}${sol ? ' is-solution' : ''}${showHtml && showCss ? ' two' : ''}`}>
+        <div
+          ref={work}
+          className={`slide-work${showPreview ? ' has-preview' : ''}${sol ? ' is-solution' : ''}${showHtml && showCss ? ' two' : ''}`}
+          style={showPreview ? ({ '--split': `${split}%` } as React.CSSProperties) : undefined}
+        >
           <div className="slide-code">
             {showHtml && pane('html')}
             {showCss && pane('css')}
           </div>
+          {showPreview && <div className="slide-split" onPointerDown={drag} role="separator" aria-orientation="vertical" aria-label="Cambiar el reparto" />}
           {showPreview && (
             <div className="slide-pane slide-result">
               <div className="pane-label">Resultado</div>
